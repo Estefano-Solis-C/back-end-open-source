@@ -12,7 +12,7 @@ import java.util.Optional;
  * Implementation of ExternalListingsService ACL for IoT context.
  * Communicates with the Listings bounded context to fetch vehicle data.
  */
-@Service
+@Service("externalListingsServiceIot")
 public class ExternalListingsServiceImpl implements ExternalListingsService {
 
     private final VehicleQueryService vehicleQueryService;
@@ -34,4 +34,3 @@ public class ExternalListingsServiceImpl implements ExternalListingsService {
         return vehicleResource.isPresent() && vehicleResource.get().ownerId().equals(userId);
     }
 }
-

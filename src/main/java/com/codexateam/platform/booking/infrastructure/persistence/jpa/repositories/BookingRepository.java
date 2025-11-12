@@ -4,7 +4,9 @@ import com.codexateam.platform.booking.domain.model.aggregates.Booking;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * JPA Repository interface for the Booking aggregate root.
@@ -22,6 +24,11 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
      * @param ownerId The ID of the owner (Arrendador).
      */
     List<Booking> findByOwnerId(Long ownerId);
+
+    /**
+     * Finds a booking for a vehicle that includes the given timestamp.
+     */
+    Optional<Booking> findFirstByVehicleIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(Long vehicleId, Date start, Date end);
 
     // TODO: Add query for checking overlapping bookings
     // @Query("SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END FROM Booking b WHERE b.vehicleId = :vehicleId AND b.status = 'CONFIRMED' AND b.startDate < :endDate AND b.endDate > :startDate")

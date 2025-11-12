@@ -1,5 +1,8 @@
 package com.codexateam.platform.iot.application.internal.outboundservices.acl;
 
+import java.util.Date;
+import java.util.Optional;
+
 /**
  * Anti-Corruption Layer (ACL) facade for accessing Booking bounded context from IoT.
  * Provides methods to validate tracking permissions.
@@ -17,5 +20,6 @@ public interface ExternalBookingService {
      * @return true if the user has permission, false otherwise.
      */
     boolean hasTrackingPermission(Long userId, Long vehicleId);
-}
 
+    Optional<Long> getBookingIdByVehicleIdAndDate(Long vehicleId, Date timestamp);
+}

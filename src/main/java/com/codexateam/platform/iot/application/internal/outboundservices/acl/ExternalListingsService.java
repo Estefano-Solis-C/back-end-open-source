@@ -25,4 +25,3 @@ public interface ExternalListingsService {
      */
     boolean isVehicleOwner(Long vehicleId, Long userId);
 }
-

@@ -1,11 +1,13 @@
 package com.codexateam.platform.iot.application.internal.outboundservices.acl;
 
-import com.codexateam.platform.booking.domain.model.aggregates.Booking;
 import com.codexateam.platform.booking.domain.model.queries.GetBookingsByRenterIdQuery;
+import com.codexateam.platform.booking.domain.model.aggregates.Booking;
 import com.codexateam.platform.booking.domain.services.BookingQueryService;
+import com.codexateam.platform.booking.interfaces.acl.BookingContextFacade;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.Optional;
 
 /**
  * Implementation of ExternalBookingService ACL for IoT context.
@@ -15,9 +17,11 @@ import java.util.Date;
 public class ExternalBookingServiceImpl implements ExternalBookingService {
 
     private final BookingQueryService bookingQueryService;
+    private final BookingContextFacade bookingContextFacade;
 
-    public ExternalBookingServiceImpl(BookingQueryService bookingQueryService) {
+    public ExternalBookingServiceImpl(BookingQueryService bookingQueryService, BookingContextFacade bookingContextFacade) {
         this.bookingQueryService = bookingQueryService;
+        this.bookingContextFacade = bookingContextFacade;
     }
 
     @Override
@@ -30,9 +34,9 @@ public class ExternalBookingServiceImpl implements ExternalBookingService {
         Date now = new Date();
         return bookings.stream()
                 .anyMatch(booking ->
-                    booking.getVehicleId().equals(vehicleId) &&
-                    isBookingActiveOrConfirmed(booking) &&
-                    isWithinBookingPeriod(booking, now)
+                        booking.getVehicleId().equals(vehicleId) &&
+                        isBookingActiveOrConfirmed(booking) &&
+                        isWithinBookingPeriod(booking, now)
                 );
     }
 
@@ -44,5 +48,9 @@ public class ExternalBookingServiceImpl implements ExternalBookingService {
     private boolean isWithinBookingPeriod(Booking booking, Date now) {
         return !now.before(booking.getStartDate()) && !now.after(booking.getEndDate());
     }
-}
 
+    @Override
+    public Optional<Long> getBookingIdByVehicleIdAndDate(Long vehicleId, Date timestamp) {
+        return bookingContextFacade.getBookingIdByVehicleIdAndDate(vehicleId, timestamp);
+    }
+}
