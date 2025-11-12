@@ -6,6 +6,7 @@ import com.codexateam.platform.iam.infrastructure.authorization.sfs.pipeline.Bea
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -101,7 +102,12 @@ public class WebSecurityConfiguration {
                                 "/swagger-ui/**",
                                 "/swagger-resources/**",
                                 "/webjars/**",
+                                "/error",
                                 "/").permitAll() // Welcome endpoint is public
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/v1/vehicles",
+                                "/api/v1/vehicles/**",
+                                "/api/v1/reviews/vehicle/**").permitAll()
                         .anyRequest().authenticated());
         http.authenticationProvider(authenticationProvider());
         http.addFilterBefore(authorizationRequestFilter(), UsernamePasswordAuthenticationFilter.class);

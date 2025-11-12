@@ -35,6 +35,20 @@ public class BearerAuthorizationRequestFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+
+        String path = request.getRequestURI();
+
+        if (path.startsWith("/api/v1/authentication/") ||
+                path.startsWith("/v3/api-docs") ||
+                path.startsWith("/swagger-ui") ||
+                path.startsWith("/swagger-resources") ||
+                path.startsWith("/webjars") ||
+                path.equals("/error") ||
+                path.equals("/")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         try {
             String jwt = parseJwt(request);
             if (jwt != null && tokenService.validateToken(jwt)) {

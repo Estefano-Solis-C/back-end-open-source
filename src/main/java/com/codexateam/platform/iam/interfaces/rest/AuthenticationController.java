@@ -16,11 +16,14 @@ import com.codexateam.platform.iam.interfaces.rest.transform.UserResourceFromEnt
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -55,18 +58,21 @@ public class AuthenticationController {
         } else if ("arrendatario".equalsIgnoreCase(resource.role())) {
             roleEnum = Roles.ROLE_ARRENDATARIO;
         } else {
-            throw new IllegalArgumentException("Invalid role provided. Must be 'arrendador' or 'arrendatario'.");
+            return ResponseEntity.badRequest().build();
         }
-        
         var role = roleQueryService.handle(new GetRoleByNameQuery(roleEnum))
                 .orElseThrow(() -> new RuntimeException("Role not found: " + resource.role()));
-
-        var command = SignUpCommandFromResourceAssembler.toCommandFromResource(resource, Set.of(role));
-        var user = userCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Error creating user"));
-        
-        var userResource = UserResourceFromEntityAssembler.toResourceFromEntity(user);
-        return ResponseEntity.status(HttpStatus.CREATED).body(userResource);
+        try {
+            var command = SignUpCommandFromResourceAssembler.toCommandFromResource(resource, Set.of(role));
+            var user = userCommandService.handle(command)
+                    .orElseThrow(() -> new RuntimeException("Error creating user"));
+            var userResource = UserResourceFromEntityAssembler.toResourceFromEntity(user);
+            return ResponseEntity.status(HttpStatus.CREATED).body(userResource);
+        } catch (IllegalArgumentException ex) {
+            var body = new HashMap<String, Object>();
+            body.put("error", ex.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
     }
 
     /**
@@ -75,13 +81,47 @@ public class AuthenticationController {
      * @return A ResponseEntity with the AuthenticatedUserResource (including token) or an error.
      */
     @PostMapping("/sign-in")
-    public ResponseEntity<AuthenticatedUserResource> signIn(@RequestBody SignInResource resource) {
-        var command = SignInCommandFromResourceAssembler.toCommandFromResource(resource);
-        var user = userCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Invalid email or password"));
+    public ResponseEntity<?> signIn(@RequestBody SignInResource resource) {
+        try {
+            var command = SignInCommandFromResourceAssembler.toCommandFromResource(resource);
+            var user = userCommandService.handle(command)
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
 
-        var token = tokenService.generateToken(user.getEmail());
-        var authenticatedUserResource = AuthenticatedUserResourceFromEntityAssembler.toResourceFromEntity(user, token);
-        return ResponseEntity.ok(authenticatedUserResource);
+            var token = tokenService.generateToken(user.getEmail());
+            var authenticatedUserResource = AuthenticatedUserResourceFromEntityAssembler.toResourceFromEntity(user, token);
+            return ResponseEntity.ok(authenticatedUserResource);
+        } catch (IllegalArgumentException ex) {
+            var body = new HashMap<String, Object>();
+            body.put("error", "Invalid email or password");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+        }
+    }
+
+    /**
+     * Public GET helper to describe how to use the authentication endpoints.
+     * This prevents a 405 when opening the base URL in a browser with GET.
+     */
+    @GetMapping
+    public Map<String, Object> info() {
+        var response = new java.util.HashMap<String, Object>();
+        response.put("message", "Authentication API");
+        response.put("note", "Use POST for sign-up and sign-in. This GET is informational.");
+        var endpoints = new java.util.HashMap<String, String>();
+        endpoints.put("signUp", "POST /api/v1/authentication/sign-up");
+        endpoints.put("signIn", "POST /api/v1/authentication/sign-in");
+        response.put("endpoints", endpoints);
+        var examples = new java.util.HashMap<String, Object>();
+        examples.put("signUpBody", java.util.Map.of(
+                "name", "John Doe",
+                "email", "john@example.com",
+                "password", "yourPassword",
+                "role", "arrendador|arrendatario"
+        ));
+        examples.put("signInBody", java.util.Map.of(
+                "email", "john@example.com",
+                "password", "yourPassword"
+        ));
+        response.put("examples", examples);
+        return response;
     }
 }

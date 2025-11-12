@@ -27,11 +27,10 @@ public class TelemetryQueryServiceImpl implements TelemetryQueryService {
      */
     @Override
     public List<Telemetry> handle(GetTelemetryByVehicleIdQuery query) {
-        // Sort by 'createdAt' (from AuditableModel) which acts as the timestamp
-        //
+        // Sort by 'createdAt' (from AuditableAbstractAggregateRoot) which acts as the timestamp
         return telemetryRepository.findByVehicleId(
             query.vehicleId(), 
-            Sort.by(Sort.Direction.DESC, "auditable.createdAt")
+            Sort.by(Sort.Direction.DESC, "createdAt")
         );
     }
 }
