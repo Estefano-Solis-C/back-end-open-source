@@ -7,11 +7,13 @@ package com.codexateam.platform.iot.domain.model.commands;
  * @param latitude The current latitude.
  * @param longitude The current longitude.
  * @param speed The current speed.
+ * @param fuelLevel The current fuel level percentage.
  */
 public record RecordTelemetryCommand(
         Long vehicleId,
         Double latitude,
         Double longitude,
-        Double speed
+        Double speed,
+        Double fuelLevel
 ) {
 }

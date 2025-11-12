@@ -8,6 +8,7 @@ public record RecordTelemetryResource(
         Long vehicleId,
         Double latitude,
         Double longitude,
-        Double speed
+        Double speed,
+        Double fuelLevel
 ) {
 }

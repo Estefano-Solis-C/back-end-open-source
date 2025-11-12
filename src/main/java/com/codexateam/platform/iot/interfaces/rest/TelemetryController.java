@@ -1,6 +1,8 @@
 package com.codexateam.platform.iot.interfaces.rest;
 
 import com.codexateam.platform.iam.infrastructure.authorization.sfs.model.UserDetailsImpl;
+import com.codexateam.platform.iot.application.internal.outboundservices.acl.ExternalBookingService;
+import com.codexateam.platform.iot.application.internal.outboundservices.acl.ExternalListingsService;
 import com.codexateam.platform.iot.domain.model.queries.GetTelemetryByVehicleIdQuery;
 import com.codexateam.platform.iot.domain.services.TelemetryCommandService;
 import com.codexateam.platform.iot.domain.services.TelemetryQueryService;
@@ -29,10 +31,18 @@ public class TelemetryController {
 
     private final TelemetryCommandService telemetryCommandService;
     private final TelemetryQueryService telemetryQueryService;
+    private final ExternalListingsService externalListingsService;
+    private final ExternalBookingService externalBookingService;
 
-    public TelemetryController(TelemetryCommandService telemetryCommandService, TelemetryQueryService telemetryQueryService) {
+    public TelemetryController(
+            TelemetryCommandService telemetryCommandService,
+            TelemetryQueryService telemetryQueryService,
+            ExternalListingsService externalListingsService,
+            ExternalBookingService externalBookingService) {
         this.telemetryCommandService = telemetryCommandService;
         this.telemetryQueryService = telemetryQueryService;
+        this.externalListingsService = externalListingsService;
+        this.externalBookingService = externalBookingService;
     }
     
     /**
@@ -41,6 +51,9 @@ public class TelemetryController {
      */
     private Long getAuthenticatedUserId() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+            throw new SecurityException("User not authenticated");
+        }
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         return userDetails.getId();
     }
@@ -52,12 +65,15 @@ public class TelemetryController {
      * @return The created telemetry resource.
      */
     @PostMapping
-    @PreAuthorize("hasRole('ROLE_ARRENDADOR')") // Only owners can post data for their vehicles (simplified)
+    @PreAuthorize("hasRole('ROLE_ARRENDADOR')")
     public ResponseEntity<TelemetryResource> recordTelemetry(@RequestBody RecordTelemetryResource resource) {
-        // TODO: Validate that the authenticated user (Arrendador) is the owner of resource.vehicleId()
-        // Long ownerId = getAuthenticatedUserId();
-        // externalListingsService.validateVehicleOwnership(resource.vehicleId(), ownerId);
-        
+        Long ownerId = getAuthenticatedUserId();
+
+        // Validate that the authenticated user is the owner of the vehicle
+        if (!externalListingsService.isVehicleOwner(resource.vehicleId(), ownerId)) {
+            throw new SecurityException("You are not authorized to record telemetry for this vehicle.");
+        }
+
         var command = RecordTelemetryCommandFromResourceAssembler.toCommandFromResource(resource);
         var telemetry = telemetryCommandService.handle(command)
                 .orElseThrow(() -> new RuntimeException("Error recording telemetry data"));
@@ -76,11 +92,19 @@ public class TelemetryController {
     @GetMapping("/vehicle/{vehicleId}")
     @PreAuthorize("hasRole('ROLE_ARRENDADOR') or hasRole('ROLE_ARRENDATARIO')")
     public ResponseEntity<List<TelemetryResource>> getTelemetryByVehicleId(@PathVariable Long vehicleId) {
-        // TODO: Validate that the authenticated user has permission to view this vehicle's tracking
-        // (e.g., is the owner or is the renter with an *active* booking for this vehicle).
-        // Long userId = getAuthenticatedUserId();
-        // externalBookingService.validateTrackingPermission(userId, vehicleId);
-        
+        Long userId = getAuthenticatedUserId();
+
+        // Validate that the authenticated user has permission to view this vehicle's tracking
+        // User must be either:
+        // 1. The owner of the vehicle (ARRENDADOR), OR
+        // 2. A renter with an active booking for this vehicle (ARRENDATARIO)
+        boolean isOwner = externalListingsService.isVehicleOwner(vehicleId, userId);
+        boolean hasActiveBooking = externalBookingService.hasTrackingPermission(userId, vehicleId);
+
+        if (!isOwner && !hasActiveBooking) {
+            throw new SecurityException("You are not authorized to view tracking data for this vehicle.");
+        }
+
         var query = new GetTelemetryByVehicleIdQuery(vehicleId);
         var telemetryList = telemetryQueryService.handle(query);
         var resources = telemetryList.stream()

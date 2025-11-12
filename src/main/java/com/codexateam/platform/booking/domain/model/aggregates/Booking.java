@@ -86,6 +86,14 @@ public class Booking extends AuditableAbstractAggregateRoot<Booking> {
     }
 
     /**
+     * Rejects the booking.
+     * Changes the status to "REJECTED".
+     */
+    public void reject() {
+        this.status = "REJECTED";
+    }
+
+    /**
      * Cancels the booking.
      * Changes the status to "CANCELED".
      */

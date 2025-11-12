@@ -30,6 +30,8 @@ public class Telemetry extends AuditableAbstractAggregateRoot<Telemetry> {
 
     private Double speed;
     
+    private Double fuelLevel;
+
     /**
      * Note: The 'timestamp' field from the frontend model
      * is represented by the 'createdAt' field from the AuditableAbstractAggregateRoot.
@@ -40,5 +42,6 @@ public class Telemetry extends AuditableAbstractAggregateRoot<Telemetry> {
         this.latitude = command.latitude();
         this.longitude = command.longitude();
         this.speed = command.speed();
+        this.fuelLevel = command.fuelLevel();
     }
 }

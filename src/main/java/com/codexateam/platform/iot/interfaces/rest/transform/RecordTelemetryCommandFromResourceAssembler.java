@@ -12,7 +12,8 @@ public class RecordTelemetryCommandFromResourceAssembler {
                 resource.vehicleId(),
                 resource.latitude(),
                 resource.longitude(),
-                resource.speed()
+                resource.speed(),
+                resource.fuelLevel()
         );
     }
 }

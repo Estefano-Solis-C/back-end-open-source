@@ -12,6 +12,7 @@ public record TelemetryResource(
         Double latitude,
         Double longitude,
         Double speed,
+        Double fuelLevel,
         Date timestamp // Mapped from 'createdAt'
 ) {
 }

@@ -1,6 +1,8 @@
 package com.codexateam.platform.booking.interfaces.rest;
 
 import com.codexateam.platform.booking.application.internal.outboundservices.acl.ExternalListingsService;
+import com.codexateam.platform.booking.domain.model.commands.ConfirmBookingCommand;
+import com.codexateam.platform.booking.domain.model.commands.RejectBookingCommand;
 import com.codexateam.platform.booking.domain.model.queries.GetBookingsByOwnerIdQuery;
 import com.codexateam.platform.booking.domain.model.queries.GetBookingsByRenterIdQuery;
 import com.codexateam.platform.booking.domain.services.BookingCommandService;
@@ -46,6 +48,9 @@ public class BookingsController {
      */
     private Long getAuthenticatedUserId() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+            throw new SecurityException("User not authenticated");
+        }
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         return userDetails.getId();
     }
@@ -108,5 +113,65 @@ public class BookingsController {
                 .map(BookingResourceFromEntityAssembler::toResourceFromEntity)
                 .toList();
         return ResponseEntity.ok(resources);
+    }
+
+    /**
+     * Confirms a booking request.
+     * Only the vehicle owner (ARRENDADOR) can confirm bookings for their vehicles.
+     *
+     * @param bookingId The ID of the booking to confirm.
+     * @return The confirmed booking resource.
+     */
+    @PutMapping("/{bookingId}/confirm")
+    @PreAuthorize("hasRole('ROLE_ARRENDADOR')")
+    public ResponseEntity<BookingResource> confirmBooking(@PathVariable Long bookingId) {
+        Long ownerId = getAuthenticatedUserId();
+
+        // First, get the booking to verify ownership
+        var bookingOpt = bookingQueryService.handle(new GetBookingsByOwnerIdQuery(ownerId))
+                .stream()
+                .filter(b -> b.getId().equals(bookingId))
+                .findFirst();
+
+        if (bookingOpt.isEmpty()) {
+            throw new SecurityException("You are not authorized to confirm this booking.");
+        }
+
+        var command = new ConfirmBookingCommand(bookingId);
+        var booking = bookingCommandService.handle(command)
+                .orElseThrow(() -> new RuntimeException("Error confirming booking."));
+
+        var resource = BookingResourceFromEntityAssembler.toResourceFromEntity(booking);
+        return ResponseEntity.ok(resource);
+    }
+
+    /**
+     * Rejects a booking request.
+     * Only the vehicle owner (ARRENDADOR) can reject bookings for their vehicles.
+     *
+     * @param bookingId The ID of the booking to reject.
+     * @return The rejected booking resource.
+     */
+    @PutMapping("/{bookingId}/reject")
+    @PreAuthorize("hasRole('ROLE_ARRENDADOR')")
+    public ResponseEntity<BookingResource> rejectBooking(@PathVariable Long bookingId) {
+        Long ownerId = getAuthenticatedUserId();
+
+        // First, get the booking to verify ownership
+        var bookingOpt = bookingQueryService.handle(new GetBookingsByOwnerIdQuery(ownerId))
+                .stream()
+                .filter(b -> b.getId().equals(bookingId))
+                .findFirst();
+
+        if (bookingOpt.isEmpty()) {
+            throw new SecurityException("You are not authorized to reject this booking.");
+        }
+
+        var command = new RejectBookingCommand(bookingId);
+        var booking = bookingCommandService.handle(command)
+                .orElseThrow(() -> new RuntimeException("Error rejecting booking."));
+
+        var resource = BookingResourceFromEntityAssembler.toResourceFromEntity(booking);
+        return ResponseEntity.ok(resource);
     }
 }

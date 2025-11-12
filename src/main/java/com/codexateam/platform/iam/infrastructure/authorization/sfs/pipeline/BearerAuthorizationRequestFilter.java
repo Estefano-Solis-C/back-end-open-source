@@ -53,7 +53,11 @@ public class BearerAuthorizationRequestFilter extends OncePerRequestFilter {
     private String parseJwt(HttpServletRequest request) {
         String headerAuth = request.getHeader("Authorization");
         if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
-            return headerAuth.substring(7);
+            // Extract token and remove any whitespace (spaces, tabs, newlines)
+            String token = headerAuth.substring(7);
+            // Remove all whitespace characters including spaces, tabs, and newlines
+            token = token.replaceAll("\\s+", "");
+            return token;
         }
         return null;
     }

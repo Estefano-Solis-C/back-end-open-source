@@ -14,6 +14,7 @@ public class TelemetryResourceFromEntityAssembler {
                 entity.getLatitude(),
                 entity.getLongitude(),
                 entity.getSpeed(),
+                entity.getFuelLevel(),
                 entity.getCreatedAt() // Use 'createdAt' as the 'timestamp'
         );
     }
