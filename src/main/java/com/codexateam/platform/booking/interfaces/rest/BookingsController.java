@@ -30,7 +30,7 @@ import java.util.List;
 
 /**
  * REST Controller for the Booking bounded context.
- * Handles all API requests for creating and viewing bookings.
+ * Provides endpoints to create, manage and retrieve bookings.
  */
 @RestController
 @RequestMapping("/api/v1/bookings")
@@ -48,8 +48,8 @@ public class BookingsController {
     }
 
     /**
-     * Extracts the authenticated user's ID from the security context.
-     * @return The authenticated user's ID.
+     * Extracts authenticated user ID.
+     * @return user id
      */
     private Long getAuthenticatedUserId() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -61,12 +61,11 @@ public class BookingsController {
     }
 
     /**
-     * Creates a new booking.
-     * Requires ARRENDATARIO role.
-     * @param resource The booking data (vehicleId, dates).
-     * @return The created booking resource.
+     * Creates a new booking (renter only).
+     * @param resource booking payload
+     * @return created booking resource
      */
-    @Operation(summary = "Create a new booking", description = "Create a new booking request for a vehicle")
+    @Operation(summary = "Create Booking", description = "Create a new booking request for a vehicle (ROLE_ARRENDATARIO)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Booking created"),
             @ApiResponse(responseCode = "400", description = "Invalid input"),
@@ -81,17 +80,16 @@ public class BookingsController {
         Long ownerId = vehicle.ownerId();
         var command = CreateBookingCommandFromResourceAssembler.toCommandFromResource(resource, renterId, ownerId);
         var booking = bookingCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Error creating booking. Check dates or availability."));
+                .orElseThrow(() -> new RuntimeException("Error creating booking"));
         var bookingResource = BookingResourceFromEntityAssembler.toResourceFromEntity(booking);
         return ResponseEntity.status(HttpStatus.CREATED).body(bookingResource);
     }
 
     /**
-     * Gets all bookings made by the authenticated renter.
-     * Corresponds to "My Bookings" page.
-     * @return A list of booking resources.
+     * Lists bookings for authenticated renter.
+     * @return list of renter bookings
      */
-    @Operation(summary = "Get Renter's Bookings", description = "Get all bookings made by the authenticated renter")
+    @Operation(summary = "Get Renter Bookings", description = "Get all bookings made by the authenticated renter (ROLE_ARRENDATARIO)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Bookings found"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
@@ -109,11 +107,10 @@ public class BookingsController {
     }
 
     /**
-     * Gets all booking requests for vehicles owned by the authenticated owner.
-     * Corresponds to "Booking Requests" page.
-     * @return A list of booking resources.
+     * Lists booking requests for authenticated owner.
+     * @return list of owner booking requests
      */
-    @Operation(summary = "Get Owner's Booking Requests", description = "Get all booking requests for vehicles owned by the authenticated owner")
+    @Operation(summary = "Get Owner Booking Requests", description = "Get all booking requests for the authenticated owner (ROLE_ARRENDADOR)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Requests found"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
@@ -131,12 +128,11 @@ public class BookingsController {
     }
 
     /**
-     * Confirms a booking request.
-     * Only the vehicle owner (ARRENDADOR) can confirm bookings for their vehicles.
-     * @param bookingId The ID of the booking to confirm.
-     * @return The confirmed booking resource.
+     * Confirms a booking (owner only).
+     * @param bookingId booking identifier
+     * @return confirmed booking resource
      */
-    @Operation(summary = "Confirm Booking", description = "Confirm a pending booking request")
+    @Operation(summary = "Confirm Booking", description = "Confirm a pending booking request (Owner only)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Booking confirmed"),
             @ApiResponse(responseCode = "401", description = "Unauthorized"),
@@ -151,22 +147,21 @@ public class BookingsController {
                 .filter(b -> b.getId().equals(bookingId))
                 .findFirst();
         if (bookingOpt.isEmpty()) {
-            throw new SecurityException("You are not authorized to confirm this booking.");
+            throw new SecurityException("Not authorized to confirm this booking");
         }
         var command = new ConfirmBookingCommand(bookingId);
         var booking = bookingCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Error confirming booking."));
+                .orElseThrow(() -> new RuntimeException("Error confirming booking"));
         var resource = BookingResourceFromEntityAssembler.toResourceFromEntity(booking);
         return ResponseEntity.ok(resource);
     }
 
     /**
-     * Rejects a booking request.
-     * Only the vehicle owner (ARRENDADOR) can reject bookings for their vehicles.
-     * @param bookingId The ID of the booking to reject.
-     * @return The rejected booking resource.
+     * Rejects a booking (owner only).
+     * @param bookingId booking identifier
+     * @return rejected booking resource
      */
-    @Operation(summary = "Reject Booking", description = "Reject a pending booking request")
+    @Operation(summary = "Reject Booking", description = "Reject a pending booking request (Owner only)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Booking rejected"),
             @ApiResponse(responseCode = "401", description = "Unauthorized"),
@@ -181,22 +176,21 @@ public class BookingsController {
                 .filter(b -> b.getId().equals(bookingId))
                 .findFirst();
         if (bookingOpt.isEmpty()) {
-            throw new SecurityException("You are not authorized to reject this booking.");
+            throw new SecurityException("Not authorized to reject this booking");
         }
         var command = new RejectBookingCommand(bookingId);
         var booking = bookingCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Error rejecting booking."));
+                .orElseThrow(() -> new RuntimeException("Error rejecting booking"));
         var resource = BookingResourceFromEntityAssembler.toResourceFromEntity(booking);
         return ResponseEntity.ok(resource);
     }
 
     /**
-     * Cancels a booking.
-     * Only the renter (ARRENDATARIO) who created the booking can cancel it.
-     * @param bookingId The ID of the booking to cancel.
-     * @return The canceled booking resource.
+     * Cancels a booking (renter only).
+     * @param bookingId booking identifier
+     * @return canceled booking resource
      */
-    @Operation(summary = "Cancel Booking", description = "Cancel a booking as the renter")
+    @Operation(summary = "Cancel Booking", description = "Cancel a booking as the renter (ROLE_ARRENDATARIO)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Booking canceled"),
             @ApiResponse(responseCode = "401", description = "Unauthorized"),
@@ -208,17 +202,17 @@ public class BookingsController {
         Long renterId = getAuthenticatedUserId();
         var command = new CancelBookingCommand(bookingId, renterId);
         var booking = bookingCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Error canceling booking."));
+                .orElseThrow(() -> new RuntimeException("Error canceling booking"));
         var resource = BookingResourceFromEntityAssembler.toResourceFromEntity(booking);
         return ResponseEntity.ok(resource);
     }
 
     /**
-     * Gets a booking by its ID.
-     * @param bookingId The ID of the booking to retrieve.
-     * @return The booking resource.
+     * Retrieves a booking by ID (owner or renter).
+     * @param bookingId booking identifier
+     * @return booking resource
      */
-    @Operation(summary = "Get Booking by ID", description = "Get details for a specific booking")
+    @Operation(summary = "Get Booking by ID", description = "Get details for a specific booking (Owner or Renter)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Booking found"),
             @ApiResponse(responseCode = "401", description = "Unauthorized"),
@@ -234,29 +228,28 @@ public class BookingsController {
     }
 
     /**
-     * Deletes a booking.
-     * @param bookingId The ID of the booking to delete.
-     * @return An empty response with status OK.
+     * Deletes a booking by ID.
+     * @param bookingId booking identifier
+     * @return empty 200 response
      */
     @Operation(summary = "Delete Booking", description = "Delete a booking by its ID")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Booking deleted"),
+            @ApiResponse(responseCode = "204", description = "Booking deleted"),
             @ApiResponse(responseCode = "404", description = "Booking not found")
     })
     @DeleteMapping("/{bookingId}")
     public ResponseEntity<?> deleteBooking(@PathVariable Long bookingId) {
         bookingCommandService.handle(new DeleteBookingCommand(bookingId));
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     /**
-     * Updates an existing booking.
-     * Allows the renter or owner to update the booking end date and recalculates the total price.
-     * @param bookingId The ID of the booking to update.
-     * @param resource The new booking data (end date).
-     * @return The updated booking resource.
+     * Updates (renews) booking end date and recalculates price.
+     * @param bookingId booking identifier
+     * @param resource payload with new end date
+     * @return updated booking resource
      */
-    @Operation(summary = "Update/Renew Booking", description = "Update (renew) an existing booking's end date and total price")
+    @Operation(summary = "Update/Renew Booking", description = "Update an existing booking's end date and total price")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Booking updated"),
             @ApiResponse(responseCode = "404", description = "Booking not found")
@@ -264,30 +257,20 @@ public class BookingsController {
     @PutMapping("/{bookingId}")
     @PreAuthorize("hasRole('ROLE_ARRENDATARIO') or hasRole('ROLE_ARRENDADOR')")
     public ResponseEntity<BookingResource> updateBooking(@PathVariable Long bookingId, @RequestBody CreateBookingResource resource) {
-        // Fetch existing booking to validate it exists
         var existingBooking = bookingQueryService.handle(new GetBookingByIdQuery(bookingId))
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
-
-        // For renewal/update we only allow changing the end date (start date remains original)
-        // Ensure new endDate is after current startDate
         if (resource.endDate().before(existingBooking.getStartDate())) {
             throw new IllegalArgumentException("New end date must be after the original start date");
         }
-
-        // Recalculate total price based on original startDate and new endDate
         long diffInMillis = Math.abs(resource.endDate().getTime() - existingBooking.getStartDate().getTime());
         long days = java.util.concurrent.TimeUnit.DAYS.convert(diffInMillis, java.util.concurrent.TimeUnit.MILLISECONDS);
-        if (days == 0) days = 1; // Minimum 1 day
-
-        // Get vehicle daily price via ACL
+        if (days == 0) days = 1;
         var vehicle = externalListingsService.fetchVehicleById(existingBooking.getVehicleId())
                 .orElseThrow(() -> new RuntimeException("Vehicle not found for booking"));
         Double totalPrice = vehicle.pricePerDay() * days;
-
         var command = new UpdateBookingCommand(bookingId, resource.endDate(), totalPrice);
         var updatedBooking = bookingCommandService.handle(command)
                 .orElseThrow(() -> new RuntimeException("Error updating booking"));
-
         var resourceOut = BookingResourceFromEntityAssembler.toResourceFromEntity(updatedBooking);
         return ResponseEntity.ok(resourceOut);
     }

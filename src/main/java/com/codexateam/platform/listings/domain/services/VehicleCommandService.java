@@ -5,6 +5,7 @@ import com.codexateam.platform.listings.domain.model.commands.CreateVehicleComma
 import com.codexateam.platform.listings.domain.model.commands.UpdateVehicleStatusCommand;
 import com.codexateam.platform.listings.domain.model.commands.UpdateVehicleCommand;
 import java.util.Optional;
+import com.codexateam.platform.listings.domain.model.commands.DeleteVehicleCommand;
 
 /**
  * Service interface for handling Vehicle commands.
@@ -36,4 +37,12 @@ public interface VehicleCommandService {
      * @return An Optional containing the updated Vehicle aggregate.
      */
     Optional<Vehicle> handle(UpdateVehicleCommand command);
+
+    /**
+     * Handles the DeleteVehicleCommand.
+     * Deletes a vehicle listing.
+     *
+     * @param command The command containing the vehicle ID to be deleted.
+     */
+    void handle(DeleteVehicleCommand command);
 }

@@ -20,6 +20,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 
+/**
+ * REST Controller for managing user profiles.
+ * Provides endpoints to list, update and delete users.
+ */
 @RestController
 @RequestMapping("/api/v1/users")
 @Tag(name = "Users", description = "Endpoints for managing user profiles")
@@ -33,6 +37,10 @@ public class UsersController {
         this.userCommandService = userCommandService;
     }
 
+    /**
+     * Retrieves all users.
+     * @return list of user resources
+     */
     @Operation(summary = "Get All Users", description = "Get a list of all users")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Users found")
@@ -46,6 +54,12 @@ public class UsersController {
         return ResponseEntity.ok(resources);
     }
 
+    /**
+     * Updates a user's password.
+     * @param userId user identifier
+     * @param resource payload with current and new password
+     * @return updated user resource
+     */
     @Operation(summary = "Update User Password", description = "Update the authenticated user's password")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Password updated"),
@@ -61,6 +75,12 @@ public class UsersController {
         return ResponseEntity.ok(updated);
     }
 
+    /**
+     * Updates a user's profile (name, email).
+     * @param userId user identifier
+     * @param resource payload with updated fields
+     * @return updated user resource
+     */
     @Operation(summary = "Update User Profile", description = "Update the authenticated user's name and email")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "User updated"),
@@ -76,14 +96,19 @@ public class UsersController {
         return ResponseEntity.ok(updated);
     }
 
+    /**
+     * Deletes a user by ID.
+     * @param userId user identifier
+     * @return empty 200 response
+     */
     @Operation(summary = "Delete User", description = "Delete a user by ID")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "User deleted"),
+            @ApiResponse(responseCode = "204", description = "User deleted"),
             @ApiResponse(responseCode = "404", description = "User not found")
     })
     @DeleteMapping("/{userId}")
     public ResponseEntity<?> deleteUser(@PathVariable Long userId) {
         userCommandService.handle(new DeleteUserCommand(userId));
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 }

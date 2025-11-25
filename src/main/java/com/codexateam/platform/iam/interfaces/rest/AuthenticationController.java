@@ -5,7 +5,6 @@ import com.codexateam.platform.iam.domain.model.queries.GetRoleByNameQuery;
 import com.codexateam.platform.iam.domain.model.valueobjects.Roles;
 import com.codexateam.platform.iam.domain.services.RoleQueryService;
 import com.codexateam.platform.iam.domain.services.UserCommandService;
-import com.codexateam.platform.iam.interfaces.rest.resources.AuthenticatedUserResource;
 import com.codexateam.platform.iam.interfaces.rest.resources.SignInResource;
 import com.codexateam.platform.iam.interfaces.rest.resources.SignUpResource;
 import com.codexateam.platform.iam.interfaces.rest.resources.UserResource;
@@ -25,12 +24,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * REST Controller for Authentication endpoints (Sign-Up, Sign-In).
+ * REST Controller for authentication endpoints (Sign-Up, Sign-In).
+ * Provides user registration and authentication operations.
  */
 @RestController
 @RequestMapping("/api/v1/authentication")
@@ -48,9 +47,9 @@ public class AuthenticationController {
     }
 
     /**
-     * Handles the POST request for user sign-up.
-     * @param resource The sign-up data (name, email, password, role).
-     * @return A ResponseEntity with the created UserResource or an error.
+     * Registers a new user account.
+     * @param resource sign-up payload
+     * @return created user resource
      */
     @Operation(summary = "User Sign-Up", description = "Create a new user account")
     @ApiResponses(value = {
@@ -60,7 +59,6 @@ public class AuthenticationController {
     })
     @PostMapping("/sign-up")
     public ResponseEntity<UserResource> signUp(@RequestBody SignUpResource resource) {
-        // Convert role string from db.json ('arrendador') to Enum ('ROLE_ARRENDADOR')
         Roles roleEnum;
         if ("arrendador".equalsIgnoreCase(resource.role())) {
             roleEnum = Roles.ROLE_ARRENDADOR;
@@ -78,18 +76,16 @@ public class AuthenticationController {
             var userResource = UserResourceFromEntityAssembler.toResourceFromEntity(user);
             return ResponseEntity.status(HttpStatus.CREATED).body(userResource);
         } catch (IllegalArgumentException ex) {
-            var body = new HashMap<String, Object>();
-            body.put("error", ex.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         }
     }
 
     /**
-     * Handles the POST request for user sign-in.
-     * @param resource The sign-in data (email, password).
-     * @return A ResponseEntity with the AuthenticatedUserResource (including token) or an error.
+     * Authenticates a user and returns a JWT token.
+     * @param resource sign-in payload
+     * @return authenticated user resource (with token) or 401
      */
-    @Operation(summary = "User Sign-In", description = "Authenticate user and get JWT token")
+    @Operation(summary = "User Sign-In", description = "Authenticate user and obtain a JWT token")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Authentication successful"),
             @ApiResponse(responseCode = "401", description = "Invalid email or password")
@@ -100,20 +96,18 @@ public class AuthenticationController {
             var command = SignInCommandFromResourceAssembler.toCommandFromResource(resource);
             var user = userCommandService.handle(command)
                     .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
-
             var token = tokenService.generateToken(user.getEmail());
             var authenticatedUserResource = AuthenticatedUserResourceFromEntityAssembler.toResourceFromEntity(user, token);
             return ResponseEntity.ok(authenticatedUserResource);
         } catch (IllegalArgumentException ex) {
-            var body = new HashMap<String, Object>();
-            body.put("error", "Invalid email or password");
+            var body = java.util.Map.of("error", "Invalid email or password");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
         }
     }
 
     /**
-     * Public GET helper to describe how to use the authentication endpoints.
-     * This prevents a 405 when opening the base URL in a browser with GET.
+     * Informational endpoint listing authentication operations.
+     * @return map with endpoint info
      */
     @GetMapping
     public Map<String, Object> info() {

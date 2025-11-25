@@ -10,19 +10,26 @@ import java.util.Map;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
 /**
  * Welcome controller for the root endpoint.
- * Provides information about available API endpoints.
+ * Exposes a summary of available API endpoints and authentication info.
  */
 @Tag(name = "Welcome", description = "API Welcome Endpoint")
 @RestController
 @RequestMapping("/")
 public class WelcomeController {
 
+    /**
+     * Returns API info and endpoint listing.
+     * @return map containing metadata and endpoints
+     */
     @GetMapping
     @Operation(summary = "API Welcome Message", description = "Provides information and available endpoints of the API")
-    @ApiResponse(responseCode = "200", description = "Successful operation")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Successful operation")
+    })
     public Map<String, Object> welcome() {
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Welcome to CodexaTeam Backend API");
@@ -38,15 +45,13 @@ public class WelcomeController {
         endpoints.put("Telemetry", "/api/v1/telemetry");
         endpoints.put("Users", "/api/v1/users");
         endpoints.put("Authentication", "/api/v1/authentication");
-
         response.put("endpoints", endpoints);
 
         Map<String, String> authInfo = new HashMap<>();
-        authInfo.put("status", "JWT Authentication is ENABLED");
+        authInfo.put("status", "JWT Authentication ENABLED");
         authInfo.put("login", "POST /api/v1/authentication/sign-in");
         authInfo.put("register", "POST /api/v1/authentication/sign-up");
-        authInfo.put("note", "Include 'Authorization: Bearer <token>' header for protected endpoints");
-
+        authInfo.put("note", "Include Authorization: Bearer <token> for protected endpoints");
         response.put("authentication", authInfo);
 
         return response;

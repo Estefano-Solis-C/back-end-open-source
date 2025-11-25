@@ -41,4 +41,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     boolean existsOverlappingBooking(@Param("vehicleId") Long vehicleId,
                                      @Param("startDate") Date startDate,
                                      @Param("endDate") Date endDate);
+
+    // Delete all bookings by vehicleId (cascade cleanup when deleting a vehicle)
+    void deleteByVehicleId(Long vehicleId);
 }

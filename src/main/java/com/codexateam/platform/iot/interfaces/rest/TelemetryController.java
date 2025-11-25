@@ -24,8 +24,7 @@ import java.util.List;
 
 /**
  * REST Controller for the IoT bounded context.
- * Handles API requests for recording and viewing vehicle telemetry.
- *
+ * Provides endpoints to record and retrieve vehicle telemetry.
  */
 @RestController
 @RequestMapping("/api/v1/telemetry")
@@ -49,8 +48,8 @@ public class TelemetryController {
     }
     
     /**
-     * Extracts the authenticated user's ID from the security context.
-     * @return The authenticated user's ID.
+     * Extracts authenticated user ID.
+     * @return user id
      */
     private Long getAuthenticatedUserId() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -62,64 +61,50 @@ public class TelemetryController {
     }
 
     /**
-     * Records a new telemetry data point.
-     * This endpoint would typically be secured for devices or vehicle owners.
-     * @param resource The telemetry data.
-     * @return The created telemetry resource.
+     * Records telemetry for a vehicle (owner only).
+     * @param resource telemetry payload
+     * @return created telemetry resource
      */
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ARRENDADOR')")
-    @Operation(summary = "Record Telemetry", description = "Record a new telemetry data point for a vehicle (Owner only)")
+    @Operation(summary = "Record Telemetry", description = "Record a new telemetry data point for a vehicle (ROLE_ARRENDADOR)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Telemetry recorded"),
             @ApiResponse(responseCode = "401", description = "Unauthorized"),
-            @ApiResponse(responseCode = "403", description = "Forbidden, not vehicle owner")
+            @ApiResponse(responseCode = "403", description = "Forbidden (not owner)")
     })
     public ResponseEntity<TelemetryResource> recordTelemetry(@RequestBody RecordTelemetryResource resource) {
         Long ownerId = getAuthenticatedUserId();
-
-        // Validate that the authenticated user is the owner of the vehicle
         if (!externalListingsService.isVehicleOwner(resource.vehicleId(), ownerId)) {
-            throw new SecurityException("You are not authorized to record telemetry for this vehicle.");
+            throw new SecurityException("Not authorized to record telemetry for this vehicle");
         }
-
         var command = RecordTelemetryCommandFromResourceAssembler.toCommandFromResource(resource);
         var telemetry = telemetryCommandService.handle(command)
                 .orElseThrow(() -> new RuntimeException("Error recording telemetry data"));
-        
         var telemetryResource = TelemetryResourceFromEntityAssembler.toResourceFromEntity(telemetry);
         return ResponseEntity.status(HttpStatus.CREATED).body(telemetryResource);
     }
 
     /**
-     * Gets all telemetry data for a specific vehicle, sorted by most recent first.
-     * Secured for both Arrendador (owner) and Arrendatario (renter).
-     *
-     * @param vehicleId The ID of the vehicle.
-     * @return A list of telemetry resources.
+     * Retrieves telemetry for a vehicle (owner or renter with active booking).
+     * @param vehicleId vehicle identifier
+     * @return list of telemetry resources
      */
     @GetMapping("/vehicle/{vehicleId}")
     @PreAuthorize("hasRole('ROLE_ARRENDADOR') or hasRole('ROLE_ARRENDATARIO')")
-    @Operation(summary = "Get Telemetry by Vehicle", description = "Get all telemetry data for a specific vehicle (Owner or active Renter only)")
+    @Operation(summary = "Get Telemetry by Vehicle", description = "Get all telemetry data for a vehicle (Owner or active Renter)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Telemetry found"),
             @ApiResponse(responseCode = "401", description = "Unauthorized"),
-            @ApiResponse(responseCode = "403", description = "Forbidden, no permission")
+            @ApiResponse(responseCode = "403", description = "Forbidden")
     })
     public ResponseEntity<List<TelemetryResource>> getTelemetryByVehicleId(@PathVariable Long vehicleId) {
         Long userId = getAuthenticatedUserId();
-
-        // Validate that the authenticated user has permission to view this vehicle's tracking
-        // User must be either:
-        // 1. The owner of the vehicle, OR
-        // 2. A renter with an active booking for this vehicle
         boolean isOwner = externalListingsService.isVehicleOwner(vehicleId, userId);
         boolean hasActiveBooking = externalBookingService.hasTrackingPermission(userId, vehicleId);
-
         if (!isOwner && !hasActiveBooking) {
-            throw new SecurityException("You are not authorized to view tracking data for this vehicle.");
+            throw new SecurityException("Not authorized to view telemetry for this vehicle");
         }
-
         var query = new GetTelemetryByVehicleIdQuery(vehicleId);
         var telemetryList = telemetryQueryService.handle(query);
         var resources = telemetryList.stream()

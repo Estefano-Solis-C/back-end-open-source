@@ -16,6 +16,13 @@ import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
+// imports for delete cascade
+import org.springframework.transaction.annotation.Transactional;
+import com.codexateam.platform.listings.domain.model.commands.DeleteVehicleCommand;
+import com.codexateam.platform.booking.infrastructure.persistence.jpa.repositories.BookingRepository;
+import com.codexateam.platform.reviews.infrastructure.persistence.jpa.repositories.ReviewRepository;
+import com.codexateam.platform.iot.infrastructure.persistence.jpa.repositories.TelemetryRepository;
+
 @Service
 public class VehicleCommandServiceImpl implements VehicleCommandService {
 
@@ -23,9 +30,20 @@ public class VehicleCommandServiceImpl implements VehicleCommandService {
     private final UserQueryService userQueryService;
     // private final IamContextFacade iamContextFacade;
 
-    public VehicleCommandServiceImpl(VehicleRepository vehicleRepository, UserQueryService userQueryService) {
+    private final BookingRepository bookingRepository;
+    private final ReviewRepository reviewRepository;
+    private final TelemetryRepository telemetryRepository;
+
+    public VehicleCommandServiceImpl(VehicleRepository vehicleRepository,
+                                     UserQueryService userQueryService,
+                                     BookingRepository bookingRepository,
+                                     ReviewRepository reviewRepository,
+                                     TelemetryRepository telemetryRepository) {
         this.vehicleRepository = vehicleRepository;
         this.userQueryService = userQueryService;
+        this.bookingRepository = bookingRepository;
+        this.reviewRepository = reviewRepository;
+        this.telemetryRepository = telemetryRepository;
     }
 
     @Override
@@ -87,5 +105,17 @@ public class VehicleCommandServiceImpl implements VehicleCommandService {
         vehicleRepository.save(vehicleToUpdate);
 
         return Optional.of(vehicleToUpdate);
+    }
+
+    @Override
+    @Transactional
+    public void handle(DeleteVehicleCommand command) {
+        Long vehicleId = command.vehicleId();
+        // 1. Borrar dependencias primero
+        bookingRepository.deleteByVehicleId(vehicleId);
+        reviewRepository.deleteByVehicleId(vehicleId);
+        telemetryRepository.deleteByVehicleId(vehicleId);
+        // 2. Borrar el vehículo
+        vehicleRepository.deleteById(vehicleId);
     }
 }

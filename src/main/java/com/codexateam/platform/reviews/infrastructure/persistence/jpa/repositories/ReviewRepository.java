@@ -25,4 +25,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     // Prevent duplicate review per renter per vehicle
     boolean existsByVehicleIdAndRenterId(Long vehicleId, Long renterId);
+
+    // Delete all reviews by vehicleId (cascade cleanup when deleting a vehicle)
+    void deleteByVehicleId(Long vehicleId);
 }

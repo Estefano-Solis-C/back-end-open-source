@@ -23,9 +23,11 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+import com.codexateam.platform.listings.domain.model.commands.DeleteVehicleCommand;
+
 /**
  * REST Controller for the Listings bounded context.
- * Handles all API requests related to Vehicles.
+ * Provides endpoints to create, update, list, retrieve and delete vehicles.
  */
 @RestController
 @RequestMapping("/api/v1/vehicles")
@@ -42,7 +44,7 @@ public class VehiclesController {
     
     /**
      * Extracts the authenticated user's ID from the security context.
-     * @return The authenticated user's ID.
+     * @return the authenticated user ID
      */
     private Long getAuthenticatedUserId() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -54,14 +56,13 @@ public class VehiclesController {
     }
 
     /**
-     * Creates a new vehicle listing.
-     * Requires ARRENDADOR role.
-     * @param resource The vehicle data.
-     * @return The created vehicle resource.
+     * Creates a new vehicle listing (owner only).
+     * @param resource payload containing vehicle attributes
+     * @return created vehicle resource with HTTP 201
      */
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ARRENDADOR')")
-    @Operation(summary = "Create Vehicle Listing", description = "Create a new vehicle listing as an owner (ARRENDADOR)")
+    @Operation(summary = "Create Vehicle Listing", description = "Create a new vehicle listing as an owner (ROLE_ARRENDADOR)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Vehicle created"),
             @ApiResponse(responseCode = "400", description = "Invalid input"),
@@ -72,14 +73,13 @@ public class VehiclesController {
         var command = CreateVehicleCommandFromResourceAssembler.toCommandFromResource(resource, ownerId);
         var vehicle = vehicleCommandService.handle(command)
                 .orElseThrow(() -> new RuntimeException("Error creating vehicle"));
-        
         var vehicleResource = VehicleResourceFromEntityAssembler.toResourceFromEntity(vehicle);
         return ResponseEntity.status(HttpStatus.CREATED).body(vehicleResource);
     }
 
     /**
-     * Gets all vehicle listings. Publicly accessible.
-     * @return A list of all vehicle resources.
+     * Retrieves all vehicles (public).
+     * @return list of vehicle resources
      */
     @GetMapping
     @Operation(summary = "Get All Vehicles", description = "Get a list of all available vehicles (Public)")
@@ -96,9 +96,9 @@ public class VehiclesController {
     }
 
     /**
-     * Gets a single vehicle by its ID. Publicly accessible.
-     * @param vehicleId The ID of the vehicle.
-     * @return The vehicle resource.
+     * Retrieves a vehicle by ID (public).
+     * @param vehicleId identifier of the vehicle
+     * @return vehicle resource if found
      */
     @GetMapping("/{vehicleId}")
     @Operation(summary = "Get Vehicle by ID", description = "Get details for a specific vehicle (Public)")
@@ -115,13 +115,12 @@ public class VehiclesController {
     }
     
     /**
-     * Gets all vehicles listed by the authenticated owner.
-     * Requires ARRENDADOR role.
-     * @return A list of the owner's vehicle resources.
+     * Retrieves all vehicles owned by the authenticated owner.
+     * @return list of owner's vehicle resources
      */
     @GetMapping("/my-listings")
     @PreAuthorize("hasRole('ROLE_ARRENDADOR')")
-    @Operation(summary = "Get Owner's Listings", description = "Get all vehicles listed by the authenticated owner (ARRENDADOR)")
+    @Operation(summary = "Get Owner's Listings", description = "Get all vehicles listed by the authenticated owner (ROLE_ARRENDADOR)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Listings found"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
@@ -137,15 +136,14 @@ public class VehiclesController {
     }
 
     /**
-     * Updates an existing vehicle listing.
-     * Only the owner (ARRENDADOR) can update their vehicles.
-     * @param vehicleId The ID of the vehicle to update.
-     * @param resource The updated vehicle data.
-     * @return The updated vehicle resource.
+     * Updates an existing vehicle listing (owner only).
+     * @param vehicleId vehicle identifier
+     * @param resource updated data
+     * @return updated vehicle resource
      */
     @PutMapping("/{vehicleId}")
     @PreAuthorize("hasRole('ROLE_ARRENDADOR')")
-    @Operation(summary = "Update Vehicle", description = "Update an existing vehicle listing")
+    @Operation(summary = "Update Vehicle", description = "Update an existing vehicle listing (Owner only)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Vehicle updated successfully"),
             @ApiResponse(responseCode = "404", description = "Vehicle not found")
@@ -159,14 +157,29 @@ public class VehiclesController {
                 resource.pricePerDay(),
                 resource.imageUrl()
         );
-
         var updatedVehicle = vehicleCommandService.handle(command);
-
         if (updatedVehicle.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-
         var vehicleResource = VehicleResourceFromEntityAssembler.toResourceFromEntity(updatedVehicle.get());
         return ResponseEntity.ok(vehicleResource);
+    }
+
+    /**
+     * Deletes a vehicle with cascade cleanup (owner only).
+     * @param vehicleId vehicle identifier
+     * @return empty 204 response
+     */
+    @DeleteMapping("/{vehicleId}")
+    @PreAuthorize("hasRole('ROLE_ARRENDADOR')")
+    @Operation(summary = "Delete Vehicle", description = "Delete a vehicle listing (Owner only) with cascade cleanup")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Vehicle deleted successfully"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    public ResponseEntity<?> deleteVehicle(@PathVariable Long vehicleId) {
+        var command = new DeleteVehicleCommand(vehicleId);
+        vehicleCommandService.handle(command);
+        return ResponseEntity.noContent().build();
     }
 }

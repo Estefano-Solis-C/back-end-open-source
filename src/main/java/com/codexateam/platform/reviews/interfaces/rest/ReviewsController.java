@@ -22,8 +22,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * REST controller for managing reviews.
- * It provides endpoints for creating and retrieving reviews.
+ * REST Controller for managing reviews.
+ * Provides endpoints to create and retrieve vehicle reviews.
  */
 @RestController
 @RequestMapping("/api/v1/reviews")
@@ -39,9 +39,8 @@ public class ReviewsController {
     }
 
     /**
-     * Retrieves the ID of the currently authenticated user.
-     * @return The user ID.
-     * @throws SecurityException if the user is not authenticated.
+     * Extracts authenticated user ID.
+     * @return user id
      */
     private Long getAuthenticatedUserId() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -53,37 +52,34 @@ public class ReviewsController {
     }
 
     /**
-     * Creates a new review.
-     * This endpoint is restricted to users with the 'ROLE_ARRENDATARIO' role.
-     * @param resource The resource containing the data for the new review.
-     * @return A ResponseEntity containing the created review resource and a status of CREATED.
+     * Creates a new review (renter only).
+     * @param resource review payload
+     * @return created review resource
      */
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ARRENDATARIO')")
-    @Operation(summary = "Create Review", description = "Create a new review for a vehicle (Renter only)")
+    @Operation(summary = "Create Review", description = "Create a new review for a vehicle (ROLE_ARRENDATARIO)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Review created"),
-            @ApiResponse(responseCode = "400", description = "Bad Request (e.g., no completed booking)"),
+            @ApiResponse(responseCode = "400", description = "Bad Request"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
     public ResponseEntity<ReviewResource> createReview(@RequestBody CreateReviewResource resource) {
         Long renterId = getAuthenticatedUserId();
         var command = CreateReviewCommandFromResourceAssembler.toCommandFromResource(resource, renterId);
-        
         var review = reviewCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Error creating review."));
-        
+                .orElseThrow(() -> new RuntimeException("Error creating review"));
         var reviewResource = ReviewResourceFromEntityAssembler.toResourceFromEntity(review);
         return ResponseEntity.status(HttpStatus.CREATED).body(reviewResource);
     }
 
     /**
-     * Retrieves all reviews for a specific vehicle.
-     * @param vehicleId The ID of the vehicle.
-     * @return A ResponseEntity containing a list of review resources and a status of OK.
+     * Retrieves reviews for a vehicle (public).
+     * @param vehicleId vehicle identifier
+     * @return list of reviews
      */
     @GetMapping("/vehicle/{vehicleId}")
-    @Operation(summary = "Get Reviews by Vehicle ID", description = "Get all reviews for a specific vehicle (Public)")
+    @Operation(summary = "Get Reviews by Vehicle", description = "Get all reviews for a specific vehicle (Public)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Reviews found")
     })
@@ -95,16 +91,14 @@ public class ReviewsController {
                 .toList();
         return ResponseEntity.ok(resources);
     }
-    
 
     /**
-     * Retrieves all reviews written by the currently authenticated user.
-     * This endpoint is restricted to users with the 'ROLE_ARRENDATARIO' role.
-     * @return A ResponseEntity containing a list of review resources and a status of OK.
+     * Retrieves reviews written by authenticated renter.
+     * @return list of renter reviews
      */
     @GetMapping("/my-reviews")
     @PreAuthorize("hasRole('ROLE_ARRENDATARIO')")
-    @Operation(summary = "Get Renter's Reviews", description = "Get all reviews written by the authenticated renter (ARRENDATARIO)")
+    @Operation(summary = "Get Renter Reviews", description = "Get all reviews written by the authenticated renter (ROLE_ARRENDATARIO)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Reviews found"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")

@@ -18,4 +18,7 @@ public interface TelemetryRepository extends JpaRepository<Telemetry, Long> {
      * @param sort Sorting criteria (e.g., by timestamp).
      */
     List<Telemetry> findByVehicleId(Long vehicleId, Sort sort);
+
+    // Delete all telemetry entries by vehicleId (cascade cleanup when deleting a vehicle)
+    void deleteByVehicleId(Long vehicleId);
 }
