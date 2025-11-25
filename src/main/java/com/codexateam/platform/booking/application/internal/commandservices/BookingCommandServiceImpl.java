@@ -10,6 +10,8 @@ import com.codexateam.platform.booking.domain.model.commands.DeleteBookingComman
 import com.codexateam.platform.booking.domain.model.commands.UpdateBookingCommand;
 import com.codexateam.platform.booking.domain.services.BookingCommandService;
 import com.codexateam.platform.booking.infrastructure.persistence.jpa.repositories.BookingRepository;
+import com.codexateam.platform.booking.domain.exceptions.BookingNotFoundException;
+import com.codexateam.platform.booking.domain.exceptions.VehicleNotAvailableException;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -38,12 +40,9 @@ public class BookingCommandServiceImpl implements BookingCommandService {
      */
     @Override
     public Optional<Booking> handle(CreateBookingCommand command) {
-        
         // 1. Fetch vehicle data using ACL - throws exception if not found
         var vehicleResource = externalListingsService.fetchVehicleById(command.vehicleId())
-                .orElseThrow(() -> new IllegalArgumentException(
-                    "Vehicle with ID " + command.vehicleId() + " not found."
-                ));
+                .orElseThrow(() -> new VehicleNotAvailableException(command.vehicleId(), "not found"));
 
         // 2. Validate business rules
         validateBookingRequest(command, vehicleResource);
@@ -88,9 +87,7 @@ public class BookingCommandServiceImpl implements BookingCommandService {
 
         // Validate vehicle is available (status should be "available")
         if (!"available".equalsIgnoreCase(vehicleResource.status())) {
-            throw new IllegalArgumentException(
-                "Vehicle " + command.vehicleId() + " is not available for booking. Current status: " + vehicleResource.status()
-            );
+            throw new VehicleNotAvailableException(command.vehicleId(), vehicleResource.status());
         }
 
         // Validate no overlapping bookings (PENDING or CONFIRMED)
@@ -100,7 +97,7 @@ public class BookingCommandServiceImpl implements BookingCommandService {
             command.endDate()
         );
         if (hasOverlap) {
-            throw new IllegalArgumentException("The vehicle is not available for the selected dates");
+            throw new VehicleNotAvailableException(command.vehicleId(), "dates overlap");
         }
     }
 
@@ -129,7 +126,7 @@ public class BookingCommandServiceImpl implements BookingCommandService {
         var booking = bookingRepository.findById(command.bookingId());
 
         if (booking.isEmpty()) {
-            throw new IllegalArgumentException("Booking with ID " + command.bookingId() + " not found.");
+            throw new BookingNotFoundException(command.bookingId());
         }
 
         var bookingToConfirm = booking.get();
@@ -166,7 +163,7 @@ public class BookingCommandServiceImpl implements BookingCommandService {
         var booking = bookingRepository.findById(command.bookingId());
 
         if (booking.isEmpty()) {
-            throw new IllegalArgumentException("Booking with ID " + command.bookingId() + " not found.");
+            throw new BookingNotFoundException(command.bookingId());
         }
 
         var bookingToReject = booking.get();
@@ -204,7 +201,7 @@ public class BookingCommandServiceImpl implements BookingCommandService {
         var booking = bookingRepository.findById(command.bookingId());
 
         if (booking.isEmpty()) {
-            throw new IllegalArgumentException("Booking with ID " + command.bookingId() + " not found.");
+            throw new BookingNotFoundException(command.bookingId());
         }
 
         var bookingToCancel = booking.get();
@@ -246,7 +243,7 @@ public class BookingCommandServiceImpl implements BookingCommandService {
     @Override
     public void handle(DeleteBookingCommand command) {
         if (!bookingRepository.existsById(command.bookingId())) {
-            throw new IllegalArgumentException("Booking with ID " + command.bookingId() + " not found.");
+            throw new BookingNotFoundException(command.bookingId());
         }
         bookingRepository.deleteById(command.bookingId());
     }
@@ -259,7 +256,7 @@ public class BookingCommandServiceImpl implements BookingCommandService {
     public Optional<Booking> handle(UpdateBookingCommand command) {
         var bookingOpt = bookingRepository.findById(command.bookingId());
         if (bookingOpt.isEmpty()) {
-            throw new IllegalArgumentException("Booking with ID " + command.bookingId() + " not found.");
+            throw new BookingNotFoundException(command.bookingId());
         }
         var bookingToUpdate = bookingOpt.get();
         bookingToUpdate.setEndDate(command.endDate());

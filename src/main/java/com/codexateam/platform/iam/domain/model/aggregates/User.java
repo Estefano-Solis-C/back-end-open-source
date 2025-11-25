@@ -1,12 +1,11 @@
 package com.codexateam.platform.iam.domain.model.aggregates;
 
 import com.codexateam.platform.iam.domain.model.entities.Role;
+import com.codexateam.platform.iam.domain.model.valueobjects.EmailAddress;
 import com.codexateam.platform.shared.domain.model.aggregates.AuditableAbstractAggregateRoot;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
@@ -19,7 +18,7 @@ import java.util.Set;
  * Extends AuditableAbstractAggregateRoot to include auditing fields.
  */
 @NoArgsConstructor
-@Getter
+@Setter
 @Entity
 @Table(name = "users") // Matches 'db.json'
 public class User extends AuditableAbstractAggregateRoot<User> {
@@ -30,19 +29,11 @@ public class User extends AuditableAbstractAggregateRoot<User> {
      */
     @NotBlank
     @Size(max = 100)
-    @Setter
     private String name;
-    
-    /**
-     * The user's email address. Must be unique.
-     * Based on 'email' from db.json.
-     */
-    @NotBlank
-    @Size(max = 50)
-    @Email
-    @Column(unique = true)
-    @Setter
-    private String email;
+
+    // Email as Value Object
+    @Convert(converter = com.codexateam.platform.iam.domain.model.valueobjects.EmailAddressAttributeConverter.class)
+    private EmailAddress email;
 
     /**
      * The user's hashed password.
@@ -50,7 +41,6 @@ public class User extends AuditableAbstractAggregateRoot<User> {
      */
     @NotBlank
     @Size(max = 120)
-    @Setter
     private String password;
 
     /**
@@ -65,7 +55,7 @@ public class User extends AuditableAbstractAggregateRoot<User> {
 
     public User(String name, String email, String password) {
         this.name = name;
-        this.email = email;
+        this.email = new EmailAddress(email);
         this.password = password;
     }
 
@@ -83,4 +73,12 @@ public class User extends AuditableAbstractAggregateRoot<User> {
         this.roles.add(role);
         return this;
     }
+
+    // Accessors replacing Lombok @Getter
+    public String getName() { return name; }
+    public EmailAddress getEmailAddress() { return email; }
+    public String getPassword() { return password; }
+    public Set<Role> getRoles() { return roles; }
+
+    public void setEmail(String newEmail) { this.email = new EmailAddress(newEmail); }
 }

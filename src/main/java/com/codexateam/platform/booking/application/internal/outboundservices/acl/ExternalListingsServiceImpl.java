@@ -1,9 +1,7 @@
 package com.codexateam.platform.booking.application.internal.outboundservices.acl;
 
 import com.codexateam.platform.listings.interfaces.acl.ListingsContextFacade;
-import com.codexateam.platform.listings.interfaces.rest.VehiclesController;
 import com.codexateam.platform.listings.interfaces.rest.resources.VehicleResource;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -12,24 +10,20 @@ import java.util.Optional;
 public class ExternalListingsServiceImpl implements ExternalListingsService {
 
     private final ListingsContextFacade listingsContextFacade;
-    private final VehiclesController vehiclesController;
 
-    public ExternalListingsServiceImpl(ListingsContextFacade listingsContextFacade, VehiclesController vehiclesController) {
+    public ExternalListingsServiceImpl(ListingsContextFacade listingsContextFacade) {
         this.listingsContextFacade = listingsContextFacade;
-        this.vehiclesController = vehiclesController;
     }
 
     @Override
     public Optional<VehicleResource> fetchVehicleById(Long vehicleId) {
+        // Delegates to Facade to avoid coupling with REST controllers.
         try {
-            ResponseEntity<VehicleResource> response = vehiclesController.getVehicleById(vehicleId);
-            if (response.getStatusCode().is2xxSuccessful()) {
-                return Optional.ofNullable(response.getBody());
-            }
+            return listingsContextFacade.getVehicleById(vehicleId);
         } catch (Exception e) {
             // Logging omitted for brevity
+            return Optional.empty();
         }
-        return Optional.empty();
     }
 
     @Override

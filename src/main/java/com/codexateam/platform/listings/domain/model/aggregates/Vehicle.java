@@ -2,7 +2,9 @@ package com.codexateam.platform.listings.domain.model.aggregates;
 
 import com.codexateam.platform.listings.domain.model.commands.CreateVehicleCommand;
 import com.codexateam.platform.listings.domain.model.commands.UpdateVehicleCommand;
+import com.codexateam.platform.listings.domain.model.valueobjects.VehicleStatus;
 import com.codexateam.platform.shared.domain.model.aggregates.AuditableAbstractAggregateRoot;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -34,8 +36,8 @@ public class Vehicle extends AuditableAbstractAggregateRoot<Vehicle> {
     /**
      * The rental status of the vehicle (e.g., "available", "rented").
      */
-    @Column(nullable = false)
-    private String status;
+    @Embedded
+    private VehicleStatus status;
 
     @Column(length = 1000)
     private String imageUrl;
@@ -51,7 +53,7 @@ public class Vehicle extends AuditableAbstractAggregateRoot<Vehicle> {
         this.model = command.model();
         this.year = command.year();
         this.pricePerDay = command.pricePerDay();
-        this.status = "available"; // Default status on creation
+        this.status = new VehicleStatus("available"); // Default status on creation
         this.imageUrl = command.imageUrl();
         this.ownerId = command.ownerId();
     }
@@ -61,7 +63,7 @@ public class Vehicle extends AuditableAbstractAggregateRoot<Vehicle> {
      * @param newStatus The new status (e.g., "rented").
      */
     public void updateStatus(String newStatus) {
-        this.status = newStatus;
+        this.status = new VehicleStatus(newStatus);
     }
 
     /**
@@ -75,4 +77,7 @@ public class Vehicle extends AuditableAbstractAggregateRoot<Vehicle> {
         this.pricePerDay = command.pricePerDay();
         this.imageUrl = command.imageUrl();
     }
+
+    // Accessor for status value
+    public String getStatus() { return status != null ? status.value() : null; }
 }

@@ -7,6 +7,7 @@ import com.codexateam.platform.booking.domain.model.queries.GetBookingByVehicleI
 import com.codexateam.platform.booking.domain.model.queries.GetBookingByIdQuery;
 import com.codexateam.platform.booking.domain.services.BookingQueryService;
 import com.codexateam.platform.booking.infrastructure.persistence.jpa.repositories.BookingRepository;
+import com.codexateam.platform.booking.domain.exceptions.BookingNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -43,6 +44,10 @@ public class BookingQueryServiceImpl implements BookingQueryService {
 
     @Override
     public Optional<Booking> handle(GetBookingByIdQuery query) {
-        return bookingRepository.findById(query.bookingId());
+        var bookingOpt = bookingRepository.findById(query.bookingId());
+        if (bookingOpt.isEmpty()) {
+            throw new BookingNotFoundException(query.bookingId());
+        }
+        return bookingOpt;
     }
 }

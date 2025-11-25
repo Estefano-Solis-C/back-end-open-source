@@ -13,7 +13,6 @@ public class AuthenticatedUserResourceFromEntityAssembler {
         var roles = user.getRoles().stream()
                 .map(role -> role.getStringName())
                 .collect(Collectors.toSet());
-
-        return new AuthenticatedUserResource(user.getId(), user.getEmail(), user.getName(), roles, token);
+        return new AuthenticatedUserResource(user.getId(), user.getEmailAddress().value(), user.getName(), roles, token);
     }
 }

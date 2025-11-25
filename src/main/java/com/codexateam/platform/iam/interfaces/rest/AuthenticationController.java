@@ -96,7 +96,7 @@ public class AuthenticationController {
             var command = SignInCommandFromResourceAssembler.toCommandFromResource(resource);
             var user = userCommandService.handle(command)
                     .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
-            var token = tokenService.generateToken(user.getEmail());
+            var token = tokenService.generateToken(user.getEmailAddress().value());
             var authenticatedUserResource = AuthenticatedUserResourceFromEntityAssembler.toResourceFromEntity(user, token);
             return ResponseEntity.ok(authenticatedUserResource);
         } catch (IllegalArgumentException ex) {

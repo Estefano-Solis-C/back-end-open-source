@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import com.codexateam.platform.listings.domain.model.commands.UpdateVehicleStatusCommand;
 import com.codexateam.platform.listings.domain.services.VehicleCommandService;
+import com.codexateam.platform.listings.interfaces.rest.resources.VehicleResource;
 
 @Service
 public class ListingsContextFacade {
@@ -58,5 +59,31 @@ public class ListingsContextFacade {
     public Optional<Vehicle> updateVehicleStatus(Long vehicleId, String status) {
         var command = new UpdateVehicleStatusCommand(vehicleId, status);
         return vehicleCommandService.handle(command);
+    }
+
+    /**
+     * Retrieves a VehicleResource by ID for cross-context use (ACL for Booking, IoT, etc.).
+     * @param vehicleId The ID of the vehicle.
+     * @return Optional with VehicleResource if found, otherwise empty.
+     */
+    public Optional<VehicleResource> getVehicleById(Long vehicleId) {
+        var query = new GetVehicleByIdQuery(vehicleId);
+        var vehicleOpt = vehicleQueryService.handle(query);
+        return vehicleOpt.map(this::toResource);
+    }
+
+    // Helper to map aggregate to resource without exposing controller layer.
+    private VehicleResource toResource(Vehicle v) {
+        return new VehicleResource(
+                v.getId(),
+                v.getBrand(),
+                v.getModel(),
+                v.getYear(),
+                v.getPricePerDay(),
+                v.getStatus(),
+                v.getImageUrl(),
+                v.getOwnerId(),
+                v.getCreatedAt()
+        );
     }
 }
