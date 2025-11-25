@@ -1,10 +1,11 @@
 package com.codexateam.platform.iot.application.internal.commandservices;
 
+import com.codexateam.platform.iot.application.internal.outboundservices.acl.ExternalListingsService;
+import com.codexateam.platform.iot.domain.exceptions.VehicleNotFoundException;
 import com.codexateam.platform.iot.domain.model.aggregates.Telemetry;
 import com.codexateam.platform.iot.domain.model.commands.RecordTelemetryCommand;
 import com.codexateam.platform.iot.domain.services.TelemetryCommandService;
 import com.codexateam.platform.iot.infrastructure.persistence.jpa.repositories.TelemetryRepository;
-// TODO: Inject Listings ACL Facade
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -16,23 +17,25 @@ import java.util.Optional;
 public class TelemetryCommandServiceImpl implements TelemetryCommandService {
 
     private final TelemetryRepository telemetryRepository;
-    // private final ExternalListingsService externalListingsService; // ACL
+    private final ExternalListingsService externalListingsService;
 
-    public TelemetryCommandServiceImpl(TelemetryRepository telemetryRepository) {
+    public TelemetryCommandServiceImpl(TelemetryRepository telemetryRepository, ExternalListingsService externalListingsService) {
         this.telemetryRepository = telemetryRepository;
+        this.externalListingsService = externalListingsService;
     }
 
     /**
      * Handles the RecordTelemetryCommand.
-     * TODO: Add validation:
-     * 1. Use Listings ACL to verify vehicleId exists.
-     * 2. Verify that the authenticated principal (device/user) has permission to post data for this vehicle.
+     * Validates that the vehicle exists before recording telemetry.
+     * TODO: Add additional validation to verify that the authenticated principal (device/user)
+     * has permission to post data for this vehicle.
      */
     @Override
     public Optional<Telemetry> handle(RecordTelemetryCommand command) {
-        // if (!externalListingsService.vehicleExists(command.vehicleId())) {
-        //    throw new IllegalArgumentException("Vehicle not found");
-        // }
+        // Validate that the vehicle exists
+        if (externalListingsService.fetchVehicleById(command.vehicleId()).isEmpty()) {
+            throw new VehicleNotFoundException(command.vehicleId());
+        }
 
         var telemetry = new Telemetry(command);
         try {
