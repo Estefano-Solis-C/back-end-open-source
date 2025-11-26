@@ -34,11 +34,9 @@ public class ExternalBookingServiceImpl implements ExternalBookingService {
 
     @Override
     public boolean hasTrackingPermission(Long userId, Long vehicleId) {
-        // Get all bookings for this renter
         var query = new GetBookingsByRenterIdQuery(userId);
         var bookings = bookingQueryService.handle(query);
 
-        // Check if user has an active or confirmed booking for this vehicle
         Date now = new Date();
         return bookings.stream()
                 .anyMatch(booking ->

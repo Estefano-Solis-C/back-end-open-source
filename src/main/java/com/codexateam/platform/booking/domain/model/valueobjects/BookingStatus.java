@@ -9,13 +9,13 @@ import jakarta.persistence.Embeddable;
 @Embeddable
 public record BookingStatus(String status) {
 
-    /** Estado inicial de una reserva recién creada */
+    /** Initial status of a newly created booking */
     public static final String PENDING = "PENDING";
-    /** Estado cuando la reserva fue confirmada por el propietario */
+    /** Status when the booking was confirmed by the owner */
     public static final String CONFIRMED = "CONFIRMED";
-    /** Estado cuando la reserva fue rechazada por el propietario */
+    /** Status when the booking was rejected by the owner */
     public static final String REJECTED = "REJECTED";
-    /** Estado cuando la reserva fue cancelada por el arrendatario */
+    /** Status when the booking was canceled by the renter */
     public static final String CANCELED = "CANCELED";
 
     /**

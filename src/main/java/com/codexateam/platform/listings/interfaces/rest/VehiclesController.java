@@ -1,6 +1,7 @@
 package com.codexateam.platform.listings.interfaces.rest;
 
 import com.codexateam.platform.iam.infrastructure.authorization.sfs.model.UserDetailsImpl;
+import com.codexateam.platform.listings.domain.exceptions.VehicleNotFoundException;
 import com.codexateam.platform.listings.domain.model.queries.GetAllVehiclesQuery;
 import com.codexateam.platform.listings.domain.model.queries.GetVehicleByIdQuery;
 import com.codexateam.platform.listings.domain.model.queries.GetVehiclesByOwnerIdQuery;
@@ -34,10 +35,8 @@ import com.codexateam.platform.listings.domain.model.commands.DeleteVehicleComma
 @Tag(name = "Vehicles", description = "Endpoints for managing vehicle listings")
 public class VehiclesController {
 
-    // Constants to avoid hardcoded strings in methods
     private static final String ERROR_USER_NOT_AUTHENTICATED = "User not authenticated";
     private static final String ERROR_CREATING_VEHICLE = "Error creating vehicle";
-    private static final String ERROR_VEHICLE_NOT_FOUND = "Vehicle not found";
     private static final String ANONYMOUS_USER = "anonymousUser";
 
     private final VehicleCommandService vehicleCommandService;
@@ -115,7 +114,7 @@ public class VehiclesController {
     public ResponseEntity<VehicleResource> getVehicleById(@PathVariable Long vehicleId) {
         var query = new GetVehicleByIdQuery(vehicleId);
         var vehicle = vehicleQueryService.handle(query)
-                .orElseThrow(() -> new RuntimeException(ERROR_VEHICLE_NOT_FOUND));
+                .orElseThrow(() -> new VehicleNotFoundException(vehicleId));
         var resource = VehicleResourceFromEntityAssembler.toResourceFromEntity(vehicle);
         return ResponseEntity.ok(resource);
     }

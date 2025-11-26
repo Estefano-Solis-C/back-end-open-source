@@ -21,7 +21,7 @@ public class TelemetryResourceFromEntityAssembler {
                 entity.getFuelLevel(),
                 entity.getCreatedAt(),
                 Collections.emptyList(),
-                null // renterName will be populated in controller
+                null
         );
     }
 
@@ -41,7 +41,7 @@ public class TelemetryResourceFromEntityAssembler {
                 entity.getFuelLevel(),
                 entity.getCreatedAt(),
                 plannedRoute == null ? Collections.emptyList() : plannedRoute,
-                null // renterName will be populated in controller
+                null
         );
     }
 }

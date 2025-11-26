@@ -14,7 +14,7 @@ public class ReviewResourceFromEntityAssembler {
                 entity.getRenterId(),
                 entity.getRating(),
                 entity.getComment(),
-                entity.getCreatedAt() // Uses the auditable 'createdAt' field
+                entity.getCreatedAt()
         );
     }
 }

@@ -2,6 +2,7 @@ package com.codexateam.platform.iam.application.internal.commandservices;
 
 import com.codexateam.platform.iam.application.internal.outboundservices.hashing.HashingService;
 import com.codexateam.platform.iam.domain.exceptions.InvalidPasswordException;
+import com.codexateam.platform.iam.domain.exceptions.UserAlreadyExistsException;
 import com.codexateam.platform.iam.domain.exceptions.UserNotFoundException;
 import com.codexateam.platform.iam.domain.model.aggregates.User;
 import com.codexateam.platform.iam.domain.model.commands.SignInCommand;
@@ -37,13 +38,11 @@ public class UserCommandServiceImpl implements UserCommandService {
      */
     @Override
     public Optional<User> handle(SignUpCommand command) {
-        // Convertir String a EmailAddress para la consulta
         var emailAddress = new EmailAddress(command.email());
 
-        if (userRepository.existsByEmail(emailAddress)) { // <--- USAR EL VO
-            throw new IllegalArgumentException("User with email " + command.email() + " already exists");
+        if (userRepository.existsByEmail(emailAddress)) {
+            throw new UserAlreadyExistsException(command.email());
         }
-        // El constructor de User ya se encarga de crear el EmailAddress internamente, así que esto queda igual
         var user = new User(command.name(), command.email(), hashingService.encode(command.password()), command.roles());
         userRepository.save(user);
         return Optional.of(user);
@@ -55,16 +54,13 @@ public class UserCommandServiceImpl implements UserCommandService {
      */
     @Override
     public Optional<User> handle(SignInCommand command) {
-        // Convertir String a EmailAddress para la consulta
         var emailAddress = new EmailAddress(command.email());
-
-        var user = userRepository.findByEmail(emailAddress); // <--- USAR EL VO
-
+        var user = userRepository.findByEmail(emailAddress); // <--- USE VO
         if (user.isEmpty()) {
-            throw new IllegalArgumentException("User not found");
+            throw new UserNotFoundException(command.email());
         }
         if (!hashingService.matches(command.password(), user.get().getPassword())) {
-            throw new IllegalArgumentException("Invalid password");
+            throw new InvalidPasswordException();
         }
         return user;
     }

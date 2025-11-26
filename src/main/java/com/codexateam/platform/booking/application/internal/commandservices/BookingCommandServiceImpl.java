@@ -72,9 +72,9 @@ public class BookingCommandServiceImpl implements BookingCommandService {
     }
 
     /**
-     * Valida reglas de negocio para la creación de la reserva.
-     * @param command comando de creación
-     * @param vehicleResource datos del vehículo externos
+     * Validates business rules for booking creation.
+     * @param command creation command
+     * @param vehicleResource external vehicle data
      */
     private void validateBookingRequest(CreateBookingCommand command,
                                        com.codexateam.platform.listings.interfaces.rest.resources.VehicleResource vehicleResource) {
@@ -172,7 +172,7 @@ public class BookingCommandServiceImpl implements BookingCommandService {
 
     /**
      * Handles the CancelBookingCommand.
-     * Cancels a booking by changing its status to CANCELED.
+     * Cancels a booking by changing its status to CANCEL.
      * Only the renter who created the booking can cancel it.
      */
     @Override

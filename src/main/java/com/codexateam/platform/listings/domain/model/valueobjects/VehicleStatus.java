@@ -13,7 +13,6 @@ import java.util.Set;
  */
 @Embeddable
 public record VehicleStatus(String value) {
-    /** Allowed status values */
     public static final String AVAILABLE = "available";
     public static final String RENTED = "rented";
     public static final String MAINTENANCE = "maintenance";
@@ -24,6 +23,5 @@ public record VehicleStatus(String value) {
         if (!ALLOWED.contains(normalized)) throw new IllegalArgumentException("Invalid vehicle status: " + value);
         value = normalized;
     }
-    /** Returns the normalized status value */
     @Override public String toString() { return value; }
 }

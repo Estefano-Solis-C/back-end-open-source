@@ -23,14 +23,26 @@ public class TelemetrySimulatorService {
     private static final Logger logger = LoggerFactory.getLogger(TelemetrySimulatorService.class);
 
     // Fixed simulation points in Lima, Peru
-    private static final double START_LAT = -12.0464;  // Lima Centro
+    private static final double START_LAT = -12.0464;
     private static final double START_LNG = -77.0428;
-    private static final double END_LAT = -12.119;    // Miraflores area
+    private static final double END_LAT = -12.119;
     private static final double END_LNG = -77.029;
 
     // Simulation parameters
     private static final double INITIAL_FUEL_LEVEL = 100.0;
-    private static final double FUEL_CONSUMPTION_RATE = 0.3; // % per point
+    private static final double FUEL_CONSUMPTION_RATE = 0.3;
+
+    // Fallback route coordinates (Lima, Peru)
+    private static final double FALLBACK_POINT_1_LAT = -12.0464;
+    private static final double FALLBACK_POINT_1_LNG = -77.0428;
+    private static final double FALLBACK_POINT_2_LAT = -12.0700;
+    private static final double FALLBACK_POINT_2_LNG = -77.0380;
+    private static final double FALLBACK_POINT_3_LAT = -12.0900;
+    private static final double FALLBACK_POINT_3_LNG = -77.0340;
+    private static final double FALLBACK_POINT_4_LAT = -12.1100;
+    private static final double FALLBACK_POINT_4_LNG = -77.0300;
+    private static final double FALLBACK_POINT_5_LAT = -12.1190;
+    private static final double FALLBACK_POINT_5_LNG = -77.0290;
 
     private final OpenRouteServiceApiClient routeClient;
     private final TelemetryRepository telemetryRepository;
@@ -73,13 +85,13 @@ public class TelemetrySimulatorService {
             if (routeCoordinates.isEmpty()) {
                 logger.warn("Using fallback route due to API failure");
 
-                // Hardcoded fallback route in Lima, Peru (5 coordinates)
+                // Fallback route in Lima, Peru (5 coordinates)
                 routeCoordinates = List.of(
-                        new double[]{-12.0464, -77.0428},   // Lima Centro (start)
-                        new double[]{-12.0700, -77.0380},   // Point 2
-                        new double[]{-12.0900, -77.0340},   // Point 3 (midway)
-                        new double[]{-12.1100, -77.0300},   // Point 4
-                        new double[]{-12.1190, -77.0290}    // Miraflores (end)
+                        new double[]{FALLBACK_POINT_1_LAT, FALLBACK_POINT_1_LNG},   // Lima Centro (start)
+                        new double[]{FALLBACK_POINT_2_LAT, FALLBACK_POINT_2_LNG},   // Point 2
+                        new double[]{FALLBACK_POINT_3_LAT, FALLBACK_POINT_3_LNG},   // Point 3 (midway)
+                        new double[]{FALLBACK_POINT_4_LAT, FALLBACK_POINT_4_LNG},   // Point 4
+                        new double[]{FALLBACK_POINT_5_LAT, FALLBACK_POINT_5_LNG}    // Miraflores (end)
                 );
             } else {
                 logger.info("Route retrieved successfully with {} points. Starting simulation...",

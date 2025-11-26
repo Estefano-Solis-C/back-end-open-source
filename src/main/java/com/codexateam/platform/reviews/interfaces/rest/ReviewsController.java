@@ -31,8 +31,6 @@ import java.util.List;
 @RequestMapping("/api/v1/reviews")
 @Tag(name = "Reviews", description = "Endpoints for managing reviews")
 public class ReviewsController {
-
-    // Constants to avoid hardcoded literals
     private static final String ERROR_USER_NOT_AUTHENTICATED = "User not authenticated";
     private static final String ERROR_CREATING_REVIEW = "Error creating review";
     private static final String ANONYMOUS_USER = "anonymousUser";

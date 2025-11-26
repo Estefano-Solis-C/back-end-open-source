@@ -24,10 +24,6 @@ public class Review extends AuditableAbstractAggregateRoot<Review> {
     @Column(nullable = false)
     private Long vehicleId;
 
-    /**
-     * Foreign key to the User (Arrendatario) who is writing the review.
-     * Mapped from 'userId' in db.json.
-     */
     @Column(nullable = false)
     private Long renterId;
 

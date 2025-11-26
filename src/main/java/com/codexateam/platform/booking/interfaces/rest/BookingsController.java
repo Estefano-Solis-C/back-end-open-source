@@ -40,7 +40,7 @@ import java.util.List;
 @Tag(name = "Bookings", description = "Endpoints for managing bookings")
 public class BookingsController {
 
-    // Constantes para evitar hardcode de literales de negocio
+    // Constants to avoid hardcoding business literals
     private static final String ERROR_VEHICLE_NOT_FOUND = "Vehicle not found";
     private static final String ERROR_CREATE_BOOKING = "Error creating booking";
     private static final String ERROR_CONFIRM_BOOKING = "Error confirming booking";

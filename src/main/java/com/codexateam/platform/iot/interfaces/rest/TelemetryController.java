@@ -2,7 +2,6 @@ package com.codexateam.platform.iot.interfaces.rest;
 
 import com.codexateam.platform.iam.infrastructure.authorization.sfs.model.UserDetailsImpl;
 import com.codexateam.platform.iot.application.internal.outboundservices.acl.ExternalBookingService;
-import com.codexateam.platform.iot.application.internal.outboundservices.acl.ExternalIamService;
 import com.codexateam.platform.iot.application.internal.outboundservices.acl.ExternalListingsService;
 import com.codexateam.platform.iot.application.internal.services.TelemetrySimulatorService;
 import com.codexateam.platform.iot.application.internal.outboundservices.AutomaticTelemetryGeneratorService;
@@ -41,12 +40,9 @@ import java.util.Map;
 public class TelemetryController {
 
     private static final String BOOKING_STATUS_CONFIRMED = "CONFIRMED";
-    private static final String DEFAULT_RENTER_NAME = "No Asignado";
-    private static final String ANONYMOUS_USER = "anonymousUser";
-    private static final String ERROR_USER_NOT_AUTHENTICATED = "User not authenticated";
+    private static final String DEFAULT_RENTER_NAME = "Not Assigned";
     private static final String ERROR_NOT_AUTHORIZED_RECORD = "Not authorized to record telemetry for this vehicle";
     private static final String ERROR_RECORDING_TELEMETRY = "Error recording telemetry data";
-    private static final String ERROR_NOT_AUTHORIZED_VIEW = "Not authorized to view telemetry for this vehicle";
     private static final String ERROR_NOT_AUTHORIZED_SIMULATE = "Not authorized to simulate telemetry for this vehicle";
 
     private final TelemetryCommandService telemetryCommandService;
@@ -65,7 +61,6 @@ public class TelemetryController {
             ExternalBookingService externalBookingService,
             TelemetrySimulatorService telemetrySimulatorService,
             AutomaticTelemetryGeneratorService automaticTelemetryGeneratorService,
-            ExternalIamService externalIamService,
             BookingRepository bookingRepository,
             UserRepository userRepository) {
         this.telemetryCommandService = telemetryCommandService;
@@ -166,7 +161,6 @@ public class TelemetryController {
             throw new SecurityException("Not authorized to view telemetry for this vehicle");
         }
 
-        // Heartbeat: mark this vehicle as actively monitored in last 15s window
         automaticTelemetryGeneratorService.notifyActiveMonitoring(vehicleId);
 
         var query = new GetLatestTelemetryQuery(vehicleId);
@@ -175,9 +169,7 @@ public class TelemetryController {
             return ResponseEntity.notFound().build();
         }
 
-        // Also fetch the currently planned route to draw on frontend
         var plannedRoutePoints = automaticTelemetryGeneratorService.getPlannedRoute(vehicleId);
-        // Transform from List<double[]> to List<List<Double>> for resource
         List<List<Double>> plannedRoute = plannedRoutePoints.stream()
                 .map(p -> List.of(p[0], p[1]))
                 .toList();
@@ -185,7 +177,6 @@ public class TelemetryController {
         var resource = TelemetryResourceFromEntityAssembler
                 .toResourceFromEntity(optionalTelemetry.get(), plannedRoute);
 
-        // Enrich with renter's name from active booking
         Date now = new Date();
         bookingRepository.findFirstByVehicleIdAndBookingStatus_StatusAndStartDateLessThanEqualAndEndDateGreaterThanEqual(vehicleId, BOOKING_STATUS_CONFIRMED, now, now).flatMap(booking -> userRepository.findById(booking.getRenterId())
                 .map(User::getName)).ifPresent(resource::setRenterName);
@@ -213,14 +204,11 @@ public class TelemetryController {
     public ResponseEntity<Map<String, String>> startTelemetrySimulation(@PathVariable Long vehicleId) {
         Long ownerId = getAuthenticatedUserId();
 
-        // Verify that the authenticated user owns the vehicle
         if (!externalListingsService.isVehicleOwner(vehicleId, ownerId)) {
             throw new SecurityException(ERROR_NOT_AUTHORIZED_SIMULATE);
         }
 
-        // Start the asynchronous simulation
         telemetrySimulatorService.startSimulation(vehicleId);
-
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(
             Map.of(
                 "message", "Telemetry simulation started for vehicle " + vehicleId,

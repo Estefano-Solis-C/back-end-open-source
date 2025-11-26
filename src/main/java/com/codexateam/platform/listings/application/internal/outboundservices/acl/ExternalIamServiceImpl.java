@@ -42,7 +42,6 @@ public class ExternalIamServiceImpl implements ExternalIamService {
                     .anyMatch(role -> role.getName() == Roles.ROLE_ARRENDADOR);
 
         } catch (Exception e) {
-            // Log the exception if needed
             return false;
         }
     }

@@ -22,7 +22,7 @@ public class CreateVehicleCommandFromResourceAssembler {
                 resource.year(),
                 resource.pricePerDay(),
                 resource.imageUrl(),
-                ownerId // Injected from security context
+                ownerId
         );
     }
 }

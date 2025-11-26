@@ -43,7 +43,6 @@ public class TelemetryCommandServiceImpl implements TelemetryCommandService {
             telemetryRepository.save(telemetry);
             return Optional.of(telemetry);
         } catch (Exception e) {
-            // Log error
             return Optional.empty();
         }
     }

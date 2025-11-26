@@ -26,5 +26,5 @@ public interface ReviewQueryService {
      * @param query The query containing the review ID.
      * @return The review if found, or empty Optional.
      */
-    java.util.Optional<com.codexateam.platform.reviews.domain.model.aggregates.Review> handle(GetReviewByIdQuery query);
+    java.util.Optional<Review> handle(GetReviewByIdQuery query);
 }

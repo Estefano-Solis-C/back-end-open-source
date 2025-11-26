@@ -12,6 +12,6 @@ public record ReviewResource(
         Long renterId,
         Integer rating,
         String comment,
-        Date createdAt // Mapped from 'date' in db.json
+        Date createdAt
 ) {
 }

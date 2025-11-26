@@ -12,8 +12,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -54,7 +52,7 @@ public class AutomaticTelemetryGeneratorService {
     private final Map<Long, Queue<double[]>> vehicleRoutes = new ConcurrentHashMap<>();
 
     // Heartbeat map: last time a vehicle is being actively monitored from frontend
-    private final Map<Long, Instant> lastHeartbeatMap = new ConcurrentHashMap<>();
+    private final Map<Long, Date> lastHeartbeatMap = new ConcurrentHashMap<>();
 
     // Fuel state per vehicle (percentage 0..100)
     private final Map<Long, Double> vehicleFuelLevels = new ConcurrentHashMap<>();
@@ -84,7 +82,7 @@ public class AutomaticTelemetryGeneratorService {
      */
     public void notifyActiveMonitoring(Long vehicleId) {
         if (vehicleId == null) return;
-        lastHeartbeatMap.put(vehicleId, Instant.now());
+        lastHeartbeatMap.put(vehicleId, new Date());
     }
 
     /**
@@ -113,8 +111,11 @@ public class AutomaticTelemetryGeneratorService {
             Long vehicleId = booking.getVehicleId();
 
             try {
-                Instant lastBeat = lastHeartbeatMap.get(vehicleId);
-                if (lastBeat == null || Duration.between(lastBeat, Instant.now()).getSeconds() > 15) {
+                Date lastBeat = lastHeartbeatMap.get(vehicleId);
+                long timeSinceLastBeat = lastBeat != null
+                    ? (new Date().getTime() - lastBeat.getTime()) / 1000
+                    : Long.MAX_VALUE;
+                if (lastBeat == null || timeSinceLastBeat > 15) {
                     logger.trace("Skipping vehicle {} due to no recent heartbeat", vehicleId);
                     continue;
                 }
@@ -131,7 +132,6 @@ public class AutomaticTelemetryGeneratorService {
                     continue;
                 }
 
-                // UPSERT: obtain existing latest telemetry once per cycle for this vehicle
                 Telemetry upsertTarget = telemetryRepository
                         .findFirstByVehicleIdOrderByCreatedAtDesc(vehicleId)
                         .orElse(null);
@@ -142,7 +142,6 @@ public class AutomaticTelemetryGeneratorService {
                     if (next != null && next.length >= 2) {
                         double speed = randomSpeedKmh();
                         double fuel = consumeFuel(vehicleId);
-                        // Update existing or create new if null
                         if (upsertTarget == null) {
                             RecordTelemetryCommand command = new RecordTelemetryCommand(vehicleId, next[0], next[1], speed, fuel);
                             upsertTarget = new Telemetry(command);
@@ -278,7 +277,6 @@ public class AutomaticTelemetryGeneratorService {
         for (int i = 0; i < path.size(); i++) {
             if (i % 10 == 0) result.add(path.get(i));
         }
-        // Ensure we include the final destination point
         double[] last = path.getLast();
         if (result.isEmpty() || result.getLast() != last) {
             result.add(last);

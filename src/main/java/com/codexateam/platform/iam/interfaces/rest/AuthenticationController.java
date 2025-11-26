@@ -38,8 +38,6 @@ public class AuthenticationController {
 
     private static final String ROLE_ARRENDADOR_STRING = "arrendador";
     private static final String ROLE_ARRENDATARIO_STRING = "arrendatario";
-    private static final String ERROR_ROLE_NOT_FOUND = "Role not found: %s";
-    private static final String ERROR_CREATING_USER = "Error creating user";
     private static final String ERROR_INVALID_CREDENTIALS = "Invalid email or password";
 
     private final UserCommandService userCommandService;

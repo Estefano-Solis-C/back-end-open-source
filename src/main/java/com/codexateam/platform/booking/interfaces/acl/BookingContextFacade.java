@@ -14,8 +14,8 @@ import java.util.Optional;
 public class BookingContextFacade {
 
     /**
-     * Facade ACL para exponer operaciones del contexto Booking a otros bounded contexts
-     * sin acoplarlos con capas internas (controladores, repositorios).
+     * ACL Facade to expose Booking context operations to other bounded contexts
+     * without coupling them to internal layers (controllers, repositories).
      */
 
     private final BookingQueryService bookingQueryService;

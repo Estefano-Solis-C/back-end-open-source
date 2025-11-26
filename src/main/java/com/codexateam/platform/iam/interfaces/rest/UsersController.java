@@ -15,6 +15,7 @@ import com.codexateam.platform.iam.interfaces.rest.resources.UpdatePasswordResou
 import com.codexateam.platform.iam.interfaces.rest.transform.UpdateUserCommandFromResourceAssembler;
 import com.codexateam.platform.iam.interfaces.rest.transform.UpdatePasswordCommandFromResourceAssembler;
 import com.codexateam.platform.iam.domain.model.commands.DeleteUserCommand;
+import com.codexateam.platform.iam.domain.exceptions.UserNotFoundException;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -73,7 +74,7 @@ public class UsersController {
         var command = UpdatePasswordCommandFromResourceAssembler.toCommandFromResource(userId, resource);
         var updated = userCommandService.handle(command)
                 .map(UserResourceFromEntityAssembler::toResourceFromEntity)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException(userId));
         return ResponseEntity.ok(updated);
     }
 
