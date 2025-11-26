@@ -36,6 +36,12 @@ import java.util.Set;
 @Tag(name = "Authentication", description = "Endpoints for user authentication (Sign-Up, Sign-In)")
 public class AuthenticationController {
 
+    private static final String ROLE_ARRENDADOR_STRING = "arrendador";
+    private static final String ROLE_ARRENDATARIO_STRING = "arrendatario";
+    private static final String ERROR_ROLE_NOT_FOUND = "Role not found: %s";
+    private static final String ERROR_CREATING_USER = "Error creating user";
+    private static final String ERROR_INVALID_CREDENTIALS = "Invalid email or password";
+
     private final UserCommandService userCommandService;
     private final RoleQueryService roleQueryService;
     private final TokenService tokenService;
@@ -95,12 +101,12 @@ public class AuthenticationController {
         try {
             var command = SignInCommandFromResourceAssembler.toCommandFromResource(resource);
             var user = userCommandService.handle(command)
-                    .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
+                    .orElseThrow(() -> new IllegalArgumentException(ERROR_INVALID_CREDENTIALS));
             var token = tokenService.generateToken(user.getEmailAddress().value());
             var authenticatedUserResource = AuthenticatedUserResourceFromEntityAssembler.toResourceFromEntity(user, token);
             return ResponseEntity.ok(authenticatedUserResource);
         } catch (IllegalArgumentException ex) {
-            var body = java.util.Map.of("error", "Invalid email or password");
+            var body = java.util.Map.of("error", ERROR_INVALID_CREDENTIALS);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
         }
     }
@@ -123,7 +129,7 @@ public class AuthenticationController {
                 "name", "John Doe",
                 "email", "john@example.com",
                 "password", "yourPassword",
-                "role", "arrendador|arrendatario"
+                "role", ROLE_ARRENDADOR_STRING + "|" + ROLE_ARRENDATARIO_STRING
         ));
         examples.put("signInBody", java.util.Map.of(
                 "email", "john@example.com",

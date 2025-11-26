@@ -12,15 +12,28 @@ import com.codexateam.platform.booking.domain.services.BookingCommandService;
 import com.codexateam.platform.booking.infrastructure.persistence.jpa.repositories.BookingRepository;
 import com.codexateam.platform.booking.domain.exceptions.BookingNotFoundException;
 import com.codexateam.platform.booking.domain.exceptions.VehicleNotAvailableException;
+import com.codexateam.platform.booking.domain.exceptions.InvalidBookingStatusException;
+import com.codexateam.platform.booking.domain.exceptions.InvalidBookingDatesException;
+import com.codexateam.platform.booking.domain.exceptions.UnauthorizedBookingAccessException;
+import com.codexateam.platform.booking.domain.exceptions.OwnerMismatchException;
+import com.codexateam.platform.booking.domain.model.valueobjects.BookingStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
 /**
  * Implementation of BookingCommandService.
+ * Handles all booking-related commands following CQRS pattern.
  */
 @Service
 public class BookingCommandServiceImpl implements BookingCommandService {
+
+    private static final Logger logger = LoggerFactory.getLogger(BookingCommandServiceImpl.class);
+
+    private static final String VEHICLE_STATUS_AVAILABLE = "available";
+    private static final String VEHICLE_STATUS_RENTED = "rented";
 
     private final BookingRepository bookingRepository;
     private final ExternalListingsService externalListingsService;
@@ -40,80 +53,70 @@ public class BookingCommandServiceImpl implements BookingCommandService {
      */
     @Override
     public Optional<Booking> handle(CreateBookingCommand command) {
-        // 1. Fetch vehicle data using ACL - throws exception if not found
         var vehicleResource = externalListingsService.fetchVehicleById(command.vehicleId())
                 .orElseThrow(() -> new VehicleNotAvailableException(command.vehicleId(), "not found"));
-
-        // 2. Validate business rules
         validateBookingRequest(command, vehicleResource);
-
-        // 3. Calculate total price based on vehicle's daily rate
         Double totalPrice = calculateTotalPrice(
             vehicleResource.pricePerDay(),
             command.startDate(),
             command.endDate()
         );
-
-        // 4. Create and save booking aggregate
         var booking = new Booking(command, totalPrice);
         try {
             bookingRepository.save(booking);
             return Optional.of(booking);
         } catch (Exception e) {
-            // Log error details for debugging
-            System.err.println("Error saving booking: " + e.getMessage());
+            logger.error("Error saving booking for vehicle {}: {}", command.vehicleId(), e.getMessage(), e);
             return Optional.empty();
         }
     }
 
     /**
-     * Validates the booking request against business rules.
+     * Valida reglas de negocio para la creación de la reserva.
+     * @param command comando de creación
+     * @param vehicleResource datos del vehículo externos
      */
     private void validateBookingRequest(CreateBookingCommand command,
                                        com.codexateam.platform.listings.interfaces.rest.resources.VehicleResource vehicleResource) {
-        // Validate owner ID matches
         if (!vehicleResource.ownerId().equals(command.ownerId())) {
-            throw new IllegalArgumentException(
-                "Owner ID mismatch for vehicle " + command.vehicleId()
-            );
+            throw new OwnerMismatchException(command.vehicleId(), command.ownerId(), vehicleResource.ownerId());
         }
-
-        // Validate date logic
         if (command.startDate().after(command.endDate())) {
-            throw new IllegalArgumentException(
-                "Start date must be before end date."
-            );
+            throw new InvalidBookingDatesException(command.startDate(), command.endDate());
         }
-
-        // Validate vehicle is available (status should be "available")
-        if (!"available".equalsIgnoreCase(vehicleResource.status())) {
+        if (!VEHICLE_STATUS_AVAILABLE.equalsIgnoreCase(vehicleResource.status())) {
             throw new VehicleNotAvailableException(command.vehicleId(), vehicleResource.status());
         }
-
-        // Validate no overlapping bookings (PENDING or CONFIRMED)
-        boolean hasOverlap = bookingRepository.existsOverlappingBooking(
+        boolean hasPendingOverlap = bookingRepository.existsByVehicleIdAndBookingStatus_StatusAndStartDateLessThanAndEndDateGreaterThan(
             command.vehicleId(),
-            command.startDate(),
-            command.endDate()
+            BookingStatus.PENDING,
+            command.endDate(),
+            command.startDate()
         );
-        if (hasOverlap) {
+        boolean hasConfirmedOverlap = bookingRepository.existsByVehicleIdAndBookingStatus_StatusAndStartDateLessThanAndEndDateGreaterThan(
+            command.vehicleId(),
+            BookingStatus.CONFIRMED,
+            command.endDate(),
+            command.startDate()
+        );
+        if (hasPendingOverlap || hasConfirmedOverlap) {
             throw new VehicleNotAvailableException(command.vehicleId(), "dates overlap");
         }
     }
 
     /**
-     * Calculates the total booking price based on daily rate and duration.
-     * Minimum rental period is 1 day.
+     * Calculates total price based on daily rate and duration (minimum 1 day).
+     * @param pricePerDay The daily rental rate
+     * @param startDate The booking start date
+     * @param endDate The booking end date
+     * @return The calculated total price
      */
     private Double calculateTotalPrice(Double pricePerDay, java.util.Date startDate, java.util.Date endDate) {
         long diffInMillis = Math.abs(endDate.getTime() - startDate.getTime());
         long days = java.util.concurrent.TimeUnit.DAYS.convert(diffInMillis, java.util.concurrent.TimeUnit.MILLISECONDS);
-
-        // Ensure minimum 1 day rental
         if (days == 0) {
             days = 1;
         }
-
         return pricePerDay * days;
     }
 
@@ -124,32 +127,20 @@ public class BookingCommandServiceImpl implements BookingCommandService {
     @Override
     public Optional<Booking> handle(ConfirmBookingCommand command) {
         var booking = bookingRepository.findById(command.bookingId());
-
         if (booking.isEmpty()) {
             throw new BookingNotFoundException(command.bookingId());
         }
-
         var bookingToConfirm = booking.get();
-
-        // Validate that the booking is in PENDING status
-        if (!"PENDING".equals(bookingToConfirm.getStatus())) {
-            throw new IllegalArgumentException(
-                "Only bookings with PENDING status can be confirmed. Current status: " + bookingToConfirm.getStatus()
-            );
+        if (!BookingStatus.PENDING.equals(bookingToConfirm.getStatus())) {
+            throw new InvalidBookingStatusException(command.bookingId(), bookingToConfirm.getStatus(), BookingStatus.PENDING);
         }
-
-        // Confirm the booking
         bookingToConfirm.confirm();
-
         try {
             bookingRepository.save(bookingToConfirm);
-
-            // Update vehicle status to rented via ACL (lowercase)
-            externalListingsService.updateVehicleStatus(bookingToConfirm.getVehicleId(), "rented");
-
+            externalListingsService.updateVehicleStatus(bookingToConfirm.getVehicleId(), VEHICLE_STATUS_RENTED);
             return Optional.of(bookingToConfirm);
         } catch (Exception e) {
-            System.err.println("Error confirming booking: " + e.getMessage());
+            logger.error("Error confirming booking {}: {}", command.bookingId(), e.getMessage(), e);
             return Optional.empty();
         }
     }
@@ -161,32 +152,20 @@ public class BookingCommandServiceImpl implements BookingCommandService {
     @Override
     public Optional<Booking> handle(RejectBookingCommand command) {
         var booking = bookingRepository.findById(command.bookingId());
-
         if (booking.isEmpty()) {
             throw new BookingNotFoundException(command.bookingId());
         }
-
         var bookingToReject = booking.get();
-
-        // Validate that the booking is in PENDING status
-        if (!"PENDING".equals(bookingToReject.getStatus())) {
-            throw new IllegalArgumentException(
-                "Only bookings with PENDING status can be rejected. Current status: " + bookingToReject.getStatus()
-            );
+        if (!BookingStatus.PENDING.equals(bookingToReject.getStatus())) {
+            throw new InvalidBookingStatusException(command.bookingId(), bookingToReject.getStatus(), BookingStatus.PENDING);
         }
-
-        // Reject the booking
         bookingToReject.reject();
-
         try {
             bookingRepository.save(bookingToReject);
-
-            // Update vehicle status back to available via ACL
-            externalListingsService.updateVehicleStatus(bookingToReject.getVehicleId(), "available");
-
+            externalListingsService.updateVehicleStatus(bookingToReject.getVehicleId(), VEHICLE_STATUS_AVAILABLE);
             return Optional.of(bookingToReject);
         } catch (Exception e) {
-            System.err.println("Error rejecting booking: " + e.getMessage());
+            logger.error("Error rejecting booking {}: {}", command.bookingId(), e.getMessage(), e);
             return Optional.empty();
         }
     }
@@ -199,39 +178,23 @@ public class BookingCommandServiceImpl implements BookingCommandService {
     @Override
     public Optional<Booking> handle(CancelBookingCommand command) {
         var booking = bookingRepository.findById(command.bookingId());
-
         if (booking.isEmpty()) {
             throw new BookingNotFoundException(command.bookingId());
         }
-
         var bookingToCancel = booking.get();
-
-        // Validate that the booking belongs to the renter
         if (!bookingToCancel.getRenterId().equals(command.renterId())) {
-            throw new SecurityException(
-                "You are not authorized to cancel this booking. Booking belongs to another user."
-            );
+            throw new UnauthorizedBookingAccessException(command.bookingId(), command.renterId());
         }
-
-        // Validate that the booking is in PENDING or CONFIRMED status
-        if (!"PENDING".equals(bookingToCancel.getStatus()) && !"CONFIRMED".equals(bookingToCancel.getStatus())) {
-            throw new IllegalArgumentException(
-                "Only bookings with PENDING or CONFIRMED status can be canceled. Current status: " + bookingToCancel.getStatus()
-            );
+        if (!BookingStatus.PENDING.equals(bookingToCancel.getStatus()) && !BookingStatus.CONFIRMED.equals(bookingToCancel.getStatus())) {
+            throw new InvalidBookingStatusException(command.bookingId(), bookingToCancel.getStatus(), BookingStatus.PENDING, BookingStatus.CONFIRMED);
         }
-
-        // Cancel the booking
         bookingToCancel.cancel();
-
         try {
             bookingRepository.save(bookingToCancel);
-
-            // Update vehicle status back to available via ACL
-            externalListingsService.updateVehicleStatus(bookingToCancel.getVehicleId(), "available");
-
+            externalListingsService.updateVehicleStatus(bookingToCancel.getVehicleId(), VEHICLE_STATUS_AVAILABLE);
             return Optional.of(bookingToCancel);
         } catch (Exception e) {
-            System.err.println("Error canceling booking: " + e.getMessage());
+            logger.error("Error canceling booking {}: {}", command.bookingId(), e.getMessage(), e);
             return Optional.empty();
         }
     }

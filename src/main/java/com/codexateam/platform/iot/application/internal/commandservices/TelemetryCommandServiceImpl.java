@@ -12,6 +12,7 @@ import java.util.Optional;
 
 /**
  * Implementation of TelemetryCommandService.
+ * Handles all telemetry-related commands following CQRS pattern.
  */
 @Service
 public class TelemetryCommandServiceImpl implements TelemetryCommandService {
@@ -27,8 +28,8 @@ public class TelemetryCommandServiceImpl implements TelemetryCommandService {
     /**
      * Handles the RecordTelemetryCommand.
      * Validates that the vehicle exists before recording telemetry.
-     * TODO: Add additional validation to verify that the authenticated principal (device/user)
-     * has permission to post data for this vehicle.
+     * @param command The command containing telemetry data to record
+     * @return An Optional containing the created Telemetry aggregate, empty if save fails
      */
     @Override
     public Optional<Telemetry> handle(RecordTelemetryCommand command) {

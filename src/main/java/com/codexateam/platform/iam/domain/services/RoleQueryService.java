@@ -8,5 +8,10 @@ import java.util.Optional;
  * Service interface for handling Role queries.
  */
 public interface RoleQueryService {
+    /**
+     * Retrieves a role by its name.
+     * @param query The query containing the role name
+     * @return An Optional containing the role if found, empty otherwise
+     */
     Optional<Role> handle(GetRoleByNameQuery query);
 }

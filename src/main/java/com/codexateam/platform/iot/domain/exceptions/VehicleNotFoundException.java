@@ -5,6 +5,10 @@ package com.codexateam.platform.iot.domain.exceptions;
  * Used by IoT context when validating telemetry data.
  */
 public class VehicleNotFoundException extends RuntimeException {
+    /**
+     * Constructs a new VehicleNotFoundException with the vehicle ID.
+     * @param vehicleId The ID of the vehicle that was not found
+     */
     public VehicleNotFoundException(Long vehicleId) {
         super("Vehicle with ID " + vehicleId + " not found.");
     }

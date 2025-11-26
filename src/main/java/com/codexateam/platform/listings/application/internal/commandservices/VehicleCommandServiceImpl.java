@@ -5,21 +5,29 @@ import com.codexateam.platform.listings.domain.model.aggregates.Vehicle;
 import com.codexateam.platform.listings.domain.model.commands.CreateVehicleCommand;
 import com.codexateam.platform.listings.domain.model.commands.UpdateVehicleStatusCommand;
 import com.codexateam.platform.listings.domain.model.commands.UpdateVehicleCommand;
-import com.codexateam.platform.listings.domain.services.VehicleCommandService;
-import com.codexateam.platform.listings.infrastructure.persistence.jpa.repositories.VehicleRepository;
-import org.springframework.stereotype.Service;
-
-import java.util.Optional;
-
-// imports for delete cascade
-import org.springframework.transaction.annotation.Transactional;
 import com.codexateam.platform.listings.domain.model.commands.DeleteVehicleCommand;
+import com.codexateam.platform.listings.domain.services.VehicleCommandService;
+import com.codexateam.platform.listings.domain.exceptions.OwnerNotFoundException;
+import com.codexateam.platform.listings.infrastructure.persistence.jpa.repositories.VehicleRepository;
 import com.codexateam.platform.booking.infrastructure.persistence.jpa.repositories.BookingRepository;
 import com.codexateam.platform.reviews.infrastructure.persistence.jpa.repositories.ReviewRepository;
 import com.codexateam.platform.iot.infrastructure.persistence.jpa.repositories.TelemetryRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
+/**
+ * Implementation of VehicleCommandService.
+ * Handles all vehicle-related commands with validation through ACL.
+ */
 @Service
 public class VehicleCommandServiceImpl implements VehicleCommandService {
+
+    private static final Logger logger = LoggerFactory.getLogger(VehicleCommandServiceImpl.class);
+    private static final String ERROR_SAVING_VEHICLE = "Error saving vehicle";
 
     private final VehicleRepository vehicleRepository;
     private final ExternalIamService externalIamService;
@@ -40,18 +48,25 @@ public class VehicleCommandServiceImpl implements VehicleCommandService {
         this.telemetryRepository = telemetryRepository;
     }
 
+    /**
+     * Handles the CreateVehicleCommand.
+     * Validates that the owner exists and has ROLE_ARRENDADOR before creating the vehicle.
+     *
+     * @param command The command containing vehicle details
+     * @return Optional containing the created vehicle if successful
+     * @throws OwnerNotFoundException if owner doesn't exist or lacks required role
+     */
     @Override
     public Optional<Vehicle> handle(CreateVehicleCommand command) {
-        // Validate ownerId using IAM ACL service (defense in depth)
         if (!externalIamService.isOwner(command.ownerId())) {
-            throw new IllegalArgumentException("Owner no existe o no tiene el rol requerido (ROLE_ARRENDADOR)");
+            throw new OwnerNotFoundException(command.ownerId());
         }
-
         var vehicle = new Vehicle(command);
         try {
             vehicleRepository.save(vehicle);
             return Optional.of(vehicle);
         } catch (Exception e) {
+            logger.error("{} for owner {}: {}", ERROR_SAVING_VEHICLE, command.ownerId(), e.getMessage(), e);
             return Optional.empty();
         }
     }
@@ -102,11 +117,9 @@ public class VehicleCommandServiceImpl implements VehicleCommandService {
     @Transactional
     public void handle(DeleteVehicleCommand command) {
         Long vehicleId = command.vehicleId();
-        // 1. Borrar dependencias primero
         bookingRepository.deleteByVehicleId(vehicleId);
         reviewRepository.deleteByVehicleId(vehicleId);
         telemetryRepository.deleteByVehicleId(vehicleId);
-        // 2. Borrar el vehículo
         vehicleRepository.deleteById(vehicleId);
     }
 }

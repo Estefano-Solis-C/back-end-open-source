@@ -29,6 +29,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 @Tag(name = "Users", description = "Endpoints for managing user profiles")
 public class UsersController {
 
+    private static final String ERROR_USER_NOT_FOUND = "User not found";
+
     private final UserQueryService userQueryService;
     private final UserCommandService userCommandService;
 
@@ -92,7 +94,7 @@ public class UsersController {
         var command = UpdateUserCommandFromResourceAssembler.toCommandFromResource(userId, resource);
         var updated = userCommandService.handle(command)
                 .map(UserResourceFromEntityAssembler::toResourceFromEntity)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException(ERROR_USER_NOT_FOUND));
         return ResponseEntity.ok(updated);
     }
 

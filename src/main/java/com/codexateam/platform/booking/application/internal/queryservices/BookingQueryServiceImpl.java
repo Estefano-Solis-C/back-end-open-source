@@ -16,6 +16,7 @@ import java.util.Optional;
 
 /**
  * Implementation of BookingQueryService.
+ * Handles all booking-related queries following CQRS pattern.
  */
 @Service
 public class BookingQueryServiceImpl implements BookingQueryService {
@@ -26,22 +27,43 @@ public class BookingQueryServiceImpl implements BookingQueryService {
         this.bookingRepository = bookingRepository;
     }
 
+    /**
+     * Retrieves all bookings made by a specific renter.
+     * @param query The query containing the renter ID
+     * @return List of bookings made by the renter
+     */
     @Override
     public List<Booking> handle(GetBookingsByRenterIdQuery query) {
         return bookingRepository.findByRenterId(query.renterId());
     }
 
+    /**
+     * Retrieves all bookings associated with vehicles owned by a specific owner.
+     * @param query The query containing the owner ID
+     * @return List of bookings for the owner's vehicles
+     */
     @Override
     public List<Booking> handle(GetBookingsByOwnerIdQuery query) {
         return bookingRepository.findByOwnerId(query.ownerId());
     }
 
+    /**
+     * Finds a booking for a specific vehicle that includes the given timestamp.
+     * @param query The query containing vehicle ID and timestamp
+     * @return An Optional containing the booking if found, empty otherwise
+     */
     @Override
     public Optional<Booking> handle(GetBookingByVehicleIdAndDateQuery query) {
         Date t = query.timestamp();
         return bookingRepository.findFirstByVehicleIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(query.vehicleId(), t, t);
     }
 
+    /**
+     * Retrieves a booking by its unique identifier.
+     * @param query The query containing the booking ID
+     * @return An Optional containing the booking if found
+     * @throws BookingNotFoundException if the booking does not exist
+     */
     @Override
     public Optional<Booking> handle(GetBookingByIdQuery query) {
         var bookingOpt = bookingRepository.findById(query.bookingId());

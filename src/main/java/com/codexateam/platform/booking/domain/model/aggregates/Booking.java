@@ -1,8 +1,10 @@
 package com.codexateam.platform.booking.domain.model.aggregates;
 
 import com.codexateam.platform.booking.domain.model.commands.CreateBookingCommand;
+import com.codexateam.platform.booking.domain.model.valueobjects.BookingStatus;
 import com.codexateam.platform.shared.domain.model.aggregates.AuditableAbstractAggregateRoot;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -62,8 +64,8 @@ public class Booking extends AuditableAbstractAggregateRoot<Booking> {
      * The current status of the booking (e.g., "PENDING", "CONFIRMED", "CANCELED").
      * Renamed from 'estado' in db.json.
      */
-    @Column(nullable = false)
-    private String status;
+    @Embedded
+    private BookingStatus bookingStatus;
 
     /**
      * Constructor for creating a new Booking.
@@ -77,7 +79,7 @@ public class Booking extends AuditableAbstractAggregateRoot<Booking> {
         this.startDate = command.startDate();
         this.endDate = command.endDate();
         this.totalPrice = calculatedPrice;
-        this.status = "PENDING"; // Default status on creation
+        this.bookingStatus = BookingStatus.pending(); // Default status on creation
     }
 
     /**
@@ -85,7 +87,7 @@ public class Booking extends AuditableAbstractAggregateRoot<Booking> {
      * Changes the status to "CONFIRMED".
      */
     public void confirm() {
-        this.status = "CONFIRMED";
+        this.bookingStatus = BookingStatus.confirmed();
     }
 
     /**
@@ -93,7 +95,7 @@ public class Booking extends AuditableAbstractAggregateRoot<Booking> {
      * Changes the status to "REJECTED".
      */
     public void reject() {
-        this.status = "REJECTED";
+        this.bookingStatus = BookingStatus.rejected();
     }
 
     /**
@@ -101,6 +103,14 @@ public class Booking extends AuditableAbstractAggregateRoot<Booking> {
      * Changes the status to "CANCELED".
      */
     public void cancel() {
-        this.status = "CANCELED";
+        this.bookingStatus = BookingStatus.canceled();
+    }
+
+    /**
+     * Gets the status value as a String.
+     * @return The status value
+     */
+    public String getStatus() {
+        return this.bookingStatus != null ? this.bookingStatus.status() : null;
     }
 }

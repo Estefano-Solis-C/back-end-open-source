@@ -6,6 +6,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
+/**
+ * Implementation of ExternalListingsService that delegates to the Listings context facade.
+ * Acts as an Anti-Corruption Layer (ACL) to prevent coupling between bounded contexts.
+ */
 @Service("externalListingsServiceBooking")
 public class ExternalListingsServiceImpl implements ExternalListingsService {
 
@@ -15,22 +19,35 @@ public class ExternalListingsServiceImpl implements ExternalListingsService {
         this.listingsContextFacade = listingsContextFacade;
     }
 
+    /**
+     * Fetches vehicle details by delegating to the Listings context facade.
+     * @param vehicleId The unique identifier of the vehicle
+     * @return An Optional containing the VehicleResource if found, empty on error or not found
+     */
     @Override
     public Optional<VehicleResource> fetchVehicleById(Long vehicleId) {
-        // Delegates to Facade to avoid coupling with REST controllers.
         try {
             return listingsContextFacade.getVehicleById(vehicleId);
         } catch (Exception e) {
-            // Logging omitted for brevity
             return Optional.empty();
         }
     }
 
+    /**
+     * Retrieves the daily rental price for a vehicle from the Listings context.
+     * @param vehicleId The unique identifier of the vehicle
+     * @return An Optional containing the price per day if found, empty otherwise
+     */
     @Override
     public Optional<Double> getVehiclePriceById(Long vehicleId) {
         return listingsContextFacade.getVehiclePriceById(vehicleId);
     }
 
+    /**
+     * Updates the status of a vehicle in the Listings context.
+     * @param vehicleId The unique identifier of the vehicle
+     * @param status The new status to set
+     */
     @Override
     public void updateVehicleStatus(Long vehicleId, String status) {
         listingsContextFacade.updateVehicleStatus(vehicleId, status);

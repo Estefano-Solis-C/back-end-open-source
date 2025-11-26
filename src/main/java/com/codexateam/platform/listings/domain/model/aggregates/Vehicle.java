@@ -21,6 +21,8 @@ import lombok.NoArgsConstructor;
 @Table(name = "vehicles") // Matches 'db.json'
 public class Vehicle extends AuditableAbstractAggregateRoot<Vehicle> {
 
+    private static final String DEFAULT_STATUS_AVAILABLE = "available";
+
     @Column(nullable = false)
     private String brand;
 
@@ -53,7 +55,7 @@ public class Vehicle extends AuditableAbstractAggregateRoot<Vehicle> {
         this.model = command.model();
         this.year = command.year();
         this.pricePerDay = command.pricePerDay();
-        this.status = new VehicleStatus("available"); // Default status on creation
+        this.status = new VehicleStatus(DEFAULT_STATUS_AVAILABLE); // Default status on creation
         this.imageUrl = command.imageUrl();
         this.ownerId = command.ownerId();
     }

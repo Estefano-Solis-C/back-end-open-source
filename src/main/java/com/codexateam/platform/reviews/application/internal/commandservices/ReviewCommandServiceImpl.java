@@ -3,20 +3,28 @@ package com.codexateam.platform.reviews.application.internal.commandservices;
 import com.codexateam.platform.reviews.domain.model.aggregates.Review;
 import com.codexateam.platform.reviews.domain.model.commands.CreateReviewCommand;
 import com.codexateam.platform.reviews.domain.services.ReviewCommandService;
+import com.codexateam.platform.reviews.domain.exceptions.CompletedBookingRequiredException;
+import com.codexateam.platform.reviews.domain.exceptions.ReviewAlreadyExistsException;
 import com.codexateam.platform.reviews.infrastructure.persistence.jpa.repositories.ReviewRepository;
-import com.codexateam.platform.booking.interfaces.acl.BookingContextFacade; // ACL
+import com.codexateam.platform.booking.interfaces.acl.BookingContextFacade;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
 /**
  * Implementation of ReviewCommandService.
+ * Handles review creation with validation through ACL.
  */
 @Service
 public class ReviewCommandServiceImpl implements ReviewCommandService {
 
+    private static final Logger logger = LoggerFactory.getLogger(ReviewCommandServiceImpl.class);
+    private static final String ERROR_SAVING_REVIEW = "Error saving review";
+
     private final ReviewRepository reviewRepository;
-    private final BookingContextFacade bookingContextFacade; // ACL
+    private final BookingContextFacade bookingContextFacade;
 
     public ReviewCommandServiceImpl(ReviewRepository reviewRepository, BookingContextFacade bookingContextFacade) {
         this.reviewRepository = reviewRepository;
@@ -25,30 +33,28 @@ public class ReviewCommandServiceImpl implements ReviewCommandService {
 
     /**
      * Handles the CreateReviewCommand.
-     * TODO: Add validation:
-     * 1. Use IAM ACL to verify renterId exists.
-     * 2. Use Booking ACL to verify this renterId has a *completed* booking for this vehicleId.
-     * 3. Verify that the renter has not already submitted a review for this booking.
+     * Validates that the renter has a completed booking for the vehicle and hasn't already reviewed it.
+     *
+     * @param command The command containing review details
+     * @return Optional containing the created review if successful
+     * @throws CompletedBookingRequiredException if renter hasn't completed a booking for this vehicle
+     * @throws ReviewAlreadyExistsException if renter has already reviewed this vehicle
      */
     @Override
     public Optional<Review> handle(CreateReviewCommand command) {
-        // 2. Validate completed booking exists
         boolean hasCompletedBooking = bookingContextFacade.hasCompletedBooking(command.renterId(), command.vehicleId());
         if (!hasCompletedBooking) {
-            throw new IllegalArgumentException("Solo puedes dejar reseñas de reservas que ya has completado");
+            throw new CompletedBookingRequiredException(command.renterId(), command.vehicleId());
         }
-
-        // 3. Prevent duplicate reviews per renter per vehicle
         if (reviewRepository.existsByVehicleIdAndRenterId(command.vehicleId(), command.renterId())) {
-            throw new IllegalArgumentException("Ya has dejado una reseña para este vehículo");
+            throw new ReviewAlreadyExistsException(command.renterId(), command.vehicleId());
         }
-
         var review = new Review(command);
         try {
             reviewRepository.save(review);
             return Optional.of(review);
         } catch (Exception e) {
-            // Log error
+            logger.error("{} for vehicle {} by renter {}: {}", ERROR_SAVING_REVIEW, command.vehicleId(), command.renterId(), e.getMessage(), e);
             return Optional.empty();
         }
     }

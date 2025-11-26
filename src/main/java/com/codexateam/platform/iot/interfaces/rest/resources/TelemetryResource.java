@@ -1,25 +1,27 @@
 package com.codexateam.platform.iot.interfaces.rest.resources;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.Date;
+import java.util.List;
 
 /**
  * Represents a telemetry data resource.
- * This record is used to transfer telemetry data.
- * @param id The unique identifier of the telemetry record.
- * @param vehicleId The identifier of the vehicle.
- * @param latitude The latitude of the vehicle's location.
- * @param longitude The longitude of the vehicle's location.
- * @param speed The speed of the vehicle.
- * @param fuelLevel The fuel level of the vehicle.
- * @param timestamp The timestamp of the telemetry data.
+ * This class is used to transfer telemetry data with enriched information.
  */
-public record TelemetryResource(
-        Long id,
-        Long vehicleId,
-        Double latitude,
-        Double longitude,
-        Double speed,
-        Double fuelLevel,
-        Date timestamp
-) {
+@Getter
+@Setter
+@AllArgsConstructor
+public class TelemetryResource {
+    private Long id;
+    private Long vehicleId;
+    private Double latitude;
+    private Double longitude;
+    private Double speed;
+    private Double fuelLevel;
+    private Date timestamp;
+    private List<List<Double>> plannedRoute;
+    private String renterName;
 }

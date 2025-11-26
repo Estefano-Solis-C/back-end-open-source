@@ -10,6 +10,9 @@ import com.codexateam.platform.booking.domain.model.queries.GetBookingsByRenterI
 import com.codexateam.platform.booking.domain.model.queries.GetBookingByIdQuery;
 import com.codexateam.platform.booking.domain.services.BookingCommandService;
 import com.codexateam.platform.booking.domain.services.BookingQueryService;
+import com.codexateam.platform.booking.domain.exceptions.BookingNotFoundException;
+import com.codexateam.platform.booking.domain.exceptions.InvalidBookingDatesException;
+import com.codexateam.platform.booking.domain.exceptions.VehicleNotAvailableException;
 import com.codexateam.platform.booking.interfaces.rest.resources.BookingResource;
 import com.codexateam.platform.booking.interfaces.rest.resources.CreateBookingResource;
 import com.codexateam.platform.booking.interfaces.rest.transform.BookingResourceFromEntityAssembler;
@@ -37,6 +40,15 @@ import java.util.List;
 @Tag(name = "Bookings", description = "Endpoints for managing bookings")
 public class BookingsController {
 
+    // Constantes para evitar hardcode de literales de negocio
+    private static final String ERROR_VEHICLE_NOT_FOUND = "Vehicle not found";
+    private static final String ERROR_CREATE_BOOKING = "Error creating booking";
+    private static final String ERROR_CONFIRM_BOOKING = "Error confirming booking";
+    private static final String ERROR_REJECT_BOOKING = "Error rejecting booking";
+    private static final String ERROR_CANCEL_BOOKING = "Error canceling booking";
+    private static final String ERROR_NOT_AUTHORIZED_BOOKING = "Not authorized to operate on this booking";
+    private static final String ANONYMOUS_USER = "anonymousUser";
+
     private final BookingCommandService bookingCommandService;
     private final BookingQueryService bookingQueryService;
     private final ExternalListingsService externalListingsService;
@@ -53,7 +65,7 @@ public class BookingsController {
      */
     private Long getAuthenticatedUserId() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+        if (authentication == null || !authentication.isAuthenticated() || ANONYMOUS_USER.equals(authentication.getPrincipal())) {
             throw new SecurityException("User not authenticated");
         }
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
@@ -76,11 +88,11 @@ public class BookingsController {
     public ResponseEntity<BookingResource> createBooking(@RequestBody CreateBookingResource resource) {
         Long renterId = getAuthenticatedUserId();
         var vehicle = externalListingsService.fetchVehicleById(resource.vehicleId())
-                .orElseThrow(() -> new RuntimeException("Vehicle not found"));
+                .orElseThrow(() -> new VehicleNotAvailableException(resource.vehicleId(), ERROR_VEHICLE_NOT_FOUND));
         Long ownerId = vehicle.ownerId();
         var command = CreateBookingCommandFromResourceAssembler.toCommandFromResource(resource, renterId, ownerId);
         var booking = bookingCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Error creating booking"));
+                .orElseThrow(() -> new RuntimeException(ERROR_CREATE_BOOKING));
         var bookingResource = BookingResourceFromEntityAssembler.toResourceFromEntity(booking);
         return ResponseEntity.status(HttpStatus.CREATED).body(bookingResource);
     }
@@ -147,11 +159,11 @@ public class BookingsController {
                 .filter(b -> b.getId().equals(bookingId))
                 .findFirst();
         if (bookingOpt.isEmpty()) {
-            throw new SecurityException("Not authorized to confirm this booking");
+            throw new SecurityException(ERROR_NOT_AUTHORIZED_BOOKING);
         }
         var command = new ConfirmBookingCommand(bookingId);
         var booking = bookingCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Error confirming booking"));
+                .orElseThrow(() -> new RuntimeException(ERROR_CONFIRM_BOOKING));
         var resource = BookingResourceFromEntityAssembler.toResourceFromEntity(booking);
         return ResponseEntity.ok(resource);
     }
@@ -176,11 +188,11 @@ public class BookingsController {
                 .filter(b -> b.getId().equals(bookingId))
                 .findFirst();
         if (bookingOpt.isEmpty()) {
-            throw new SecurityException("Not authorized to reject this booking");
+            throw new SecurityException(ERROR_NOT_AUTHORIZED_BOOKING);
         }
         var command = new RejectBookingCommand(bookingId);
         var booking = bookingCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Error rejecting booking"));
+                .orElseThrow(() -> new RuntimeException(ERROR_REJECT_BOOKING));
         var resource = BookingResourceFromEntityAssembler.toResourceFromEntity(booking);
         return ResponseEntity.ok(resource);
     }
@@ -202,7 +214,7 @@ public class BookingsController {
         Long renterId = getAuthenticatedUserId();
         var command = new CancelBookingCommand(bookingId, renterId);
         var booking = bookingCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Error canceling booking"));
+                .orElseThrow(() -> new RuntimeException(ERROR_CANCEL_BOOKING));
         var resource = BookingResourceFromEntityAssembler.toResourceFromEntity(booking);
         return ResponseEntity.ok(resource);
     }
@@ -222,7 +234,7 @@ public class BookingsController {
     @PreAuthorize("hasRole('ROLE_ARRENDADOR') or hasRole('ROLE_ARRENDATARIO')")
     public ResponseEntity<BookingResource> getBookingById(@PathVariable Long bookingId) {
         var booking = bookingQueryService.handle(new GetBookingByIdQuery(bookingId))
-                .orElseThrow(() -> new RuntimeException("Booking not found"));
+                .orElseThrow(() -> new BookingNotFoundException(bookingId));
         var resource = BookingResourceFromEntityAssembler.toResourceFromEntity(booking);
         return ResponseEntity.ok(resource);
     }
@@ -258,19 +270,25 @@ public class BookingsController {
     @PreAuthorize("hasRole('ROLE_ARRENDATARIO') or hasRole('ROLE_ARRENDADOR')")
     public ResponseEntity<BookingResource> updateBooking(@PathVariable Long bookingId, @RequestBody CreateBookingResource resource) {
         var existingBooking = bookingQueryService.handle(new GetBookingByIdQuery(bookingId))
-                .orElseThrow(() -> new RuntimeException("Booking not found"));
+                .orElseThrow(() -> new BookingNotFoundException(bookingId));
+
         if (resource.endDate().before(existingBooking.getStartDate())) {
-            throw new IllegalArgumentException("New end date must be after the original start date");
+            throw new InvalidBookingDatesException(existingBooking.getStartDate(), resource.endDate(),
+                                                   "New end date must be after the original start date");
         }
+
         long diffInMillis = Math.abs(resource.endDate().getTime() - existingBooking.getStartDate().getTime());
         long days = java.util.concurrent.TimeUnit.DAYS.convert(diffInMillis, java.util.concurrent.TimeUnit.MILLISECONDS);
-        if (days == 0) days = 1;
+        if (days == 0) days = 1; // Javadoc ya explica la regla
+
         var vehicle = externalListingsService.fetchVehicleById(existingBooking.getVehicleId())
-                .orElseThrow(() -> new RuntimeException("Vehicle not found for booking"));
+                .orElseThrow(() -> new VehicleNotAvailableException(existingBooking.getVehicleId(), ERROR_VEHICLE_NOT_FOUND));
+
         Double totalPrice = vehicle.pricePerDay() * days;
         var command = new UpdateBookingCommand(bookingId, resource.endDate(), totalPrice);
         var updatedBooking = bookingCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Error updating booking"));
+                .orElseThrow(() -> new BookingNotFoundException(bookingId));
+
         var resourceOut = BookingResourceFromEntityAssembler.toResourceFromEntity(updatedBooking);
         return ResponseEntity.ok(resourceOut);
     }

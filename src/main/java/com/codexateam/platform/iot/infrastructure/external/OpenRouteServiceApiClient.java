@@ -1,21 +1,22 @@
 package com.codexateam.platform.iot.infrastructure.external;
 
-import com.codexateam.platform.iot.infrastructure.external.dto.OpenRouteServiceResponse;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 /**
- * Client for consuming the OpenRouteService API to retrieve vehicle routing information.
+ * Spring component for consuming the OpenRouteService API to retrieve vehicle routing information.
  * This service is used to simulate realistic trips by fetching actual road coordinates
- * between two geographic points.
+ * between two geographic points using RestTemplate.
  */
 @Service
 public class OpenRouteServiceApiClient {
@@ -27,20 +28,30 @@ public class OpenRouteServiceApiClient {
     private String apiKey;
 
     private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
 
-    public OpenRouteServiceApiClient() {
-        this.restTemplate = new RestTemplate();
+    /**
+     * Constructor that injects RestTemplateBuilder to build the RestTemplate instance.
+     *
+     * @param restTemplateBuilder Builder for creating RestTemplate with proper configuration
+     */
+    public OpenRouteServiceApiClient(RestTemplateBuilder restTemplateBuilder) {
+        this.restTemplate = restTemplateBuilder.build();
+        this.objectMapper = new ObjectMapper();
     }
 
     /**
      * Retrieves route coordinates from OpenRouteService API.
      *
-     * @param startLng Starting point longitude
+     * Note: The API expects coordinates in longitude,latitude order, but this method
+     * accepts and returns coordinates in latitude,longitude order for consistency with the system.
+     *
      * @param startLat Starting point latitude
-     * @param endLng Ending point longitude
+     * @param startLng Starting point longitude
      * @param endLat Ending point latitude
-     * @return List of coordinate pairs [longitude, latitude] representing the route.
-     *         Returns empty list if the request fails.
+     * @param endLng Ending point longitude
+     * @return List of coordinate pairs [latitude, longitude] representing the route.
+     *         Returns empty list if the request fails (fallback mode).
      */
     public List<double[]> getRouteCoordinates(double startLat, double startLng, double endLat, double endLng) {
         if (apiKey == null || apiKey.isBlank()) {
@@ -48,55 +59,68 @@ public class OpenRouteServiceApiClient {
             return Collections.emptyList();
         }
 
+        // Construct URL: API expects longitude,latitude order
+        // Format: /driving-car?api_key={key}&start={startLng},{startLat}&end={endLng},{endLat}
+        String url = String.format("%s?api_key=%s&start=%f,%f&end=%f,%f",
+                BASE_URL, apiKey, startLng, startLat, endLng, endLat);
+
+        logger.info("Requesting route from OpenRouteService: start({}, {}) -> end({}, {})",
+                startLat, startLng, endLat, endLng);
+
         try {
-            // Build the URL with coordinates
-            // Format: /driving-car?start=lng,lat&end=lng,lat
-            String url = UriComponentsBuilder.fromUriString(BASE_URL)
-                    .queryParam("start", String.format("%.6f,%.6f", startLng, startLat))
-                    .queryParam("end", String.format("%.6f,%.6f", endLng, endLat))
-                    .toUriString();
+            // Use restTemplate.getForObject to get the raw JSON string
+            String jsonResponse = restTemplate.getForObject(url, String.class);
 
-            logger.info("Requesting route from OpenRouteService: start({}, {}) -> end({}, {})",
-                    startLat, startLng, endLat, endLng);
+            if (jsonResponse == null || jsonResponse.isEmpty()) {
+                logger.error("OpenRouteService returned empty response");
+                return Collections.emptyList();
+            }
 
-            // Set up headers with API key
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.set("Authorization", apiKey);
-            headers.set("Accept", "application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8");
+            // Parse JSON using ObjectMapper
+            JsonNode rootNode = objectMapper.readTree(jsonResponse);
 
-            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+            // Navigate to features -> 0 -> geometry -> coordinates
+            JsonNode featuresNode = rootNode.path("features");
+            if (featuresNode.isMissingNode() || !featuresNode.isArray() || featuresNode.isEmpty()) {
+                logger.warn("No features found in OpenRouteService response");
+                return Collections.emptyList();
+            }
 
-            // Make the GET request
-            org.springframework.http.ResponseEntity<OpenRouteServiceResponse> response =
-                    restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, OpenRouteServiceResponse.class);
+            JsonNode geometryNode = featuresNode.get(0).path("geometry");
+            if (geometryNode.isMissingNode()) {
+                logger.error("No geometry found in OpenRouteService response");
+                return Collections.emptyList();
+            }
 
-            // Parse response and extract coordinates
-            if (response.getBody() != null &&
-                response.getBody().getRoutes() != null &&
-                !response.getBody().getRoutes().isEmpty()) {
+            JsonNode coordinatesNode = geometryNode.path("coordinates");
+            if (coordinatesNode.isMissingNode() || !coordinatesNode.isArray()) {
+                logger.error("No coordinates array found in OpenRouteService response");
+                return Collections.emptyList();
+            }
 
-                OpenRouteServiceResponse.Route route = response.getBody().getRoutes().getFirst();
-                if (route.getGeometry() != null && route.getGeometry().getCoordinates() != null) {
-                    List<List<Double>> coordinates = route.getGeometry().getCoordinates();
-                    List<double[]> result = new ArrayList<>();
+            // Extract coordinates into List<double[]>
+            // API returns [longitude, latitude] -> swap to [latitude, longitude] for our system
+            List<double[]> result = new ArrayList<>();
+            for (JsonNode coordNode : coordinatesNode) {
+                if (coordNode.isArray() && coordNode.size() >= 2) {
+                    double longitude = coordNode.get(0).asDouble();
+                    double latitude = coordNode.get(1).asDouble();
 
-                    for (List<Double> coord : coordinates) {
-                        if (coord.size() >= 2) {
-                            // OpenRouteService returns [longitude, latitude]
-                            result.add(new double[]{coord.get(1), coord.get(0)}); // Convert to [latitude, longitude]
-                        }
-                    }
-
-                    logger.info("Successfully retrieved {} coordinate points from OpenRouteService", result.size());
-                    return result;
+                    // Swap to [latitude, longitude] for our system
+                    result.add(new double[]{latitude, longitude});
                 }
             }
 
-            logger.warn("No route data found in OpenRouteService response");
-            return Collections.emptyList();
+            if (result.isEmpty()) {
+                logger.warn("OpenRouteService response coordinates list is empty");
+                return Collections.emptyList();
+            }
+
+            logger.info("Successfully retrieved {} coordinate points from OpenRouteService", result.size());
+            return result;
 
         } catch (org.springframework.web.client.HttpClientErrorException e) {
-            logger.error("HTTP error calling OpenRouteService API: {} - {}", e.getStatusCode(), e.getMessage());
+            logger.error("HTTP error calling OpenRouteService API ({}): {}", e.getStatusCode(), e.getResponseBodyAsString());
             return Collections.emptyList();
         } catch (org.springframework.web.client.ResourceAccessException e) {
             logger.error("Network error calling OpenRouteService API: {}", e.getMessage());
@@ -116,4 +140,3 @@ public class OpenRouteServiceApiClient {
         return apiKey != null && !apiKey.isBlank();
     }
 }
-

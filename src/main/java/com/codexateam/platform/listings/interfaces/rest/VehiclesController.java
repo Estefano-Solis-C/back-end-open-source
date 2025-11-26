@@ -34,6 +34,12 @@ import com.codexateam.platform.listings.domain.model.commands.DeleteVehicleComma
 @Tag(name = "Vehicles", description = "Endpoints for managing vehicle listings")
 public class VehiclesController {
 
+    // Constants to avoid hardcoded strings in methods
+    private static final String ERROR_USER_NOT_AUTHENTICATED = "User not authenticated";
+    private static final String ERROR_CREATING_VEHICLE = "Error creating vehicle";
+    private static final String ERROR_VEHICLE_NOT_FOUND = "Vehicle not found";
+    private static final String ANONYMOUS_USER = "anonymousUser";
+
     private final VehicleCommandService vehicleCommandService;
     private final VehicleQueryService vehicleQueryService;
 
@@ -48,8 +54,8 @@ public class VehiclesController {
      */
     private Long getAuthenticatedUserId() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
-            throw new SecurityException("User not authenticated");
+        if (authentication == null || !authentication.isAuthenticated() || ANONYMOUS_USER.equals(authentication.getPrincipal())) {
+            throw new SecurityException(ERROR_USER_NOT_AUTHENTICATED);
         }
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         return userDetails.getId();
@@ -72,7 +78,7 @@ public class VehiclesController {
         Long ownerId = getAuthenticatedUserId();
         var command = CreateVehicleCommandFromResourceAssembler.toCommandFromResource(resource, ownerId);
         var vehicle = vehicleCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Error creating vehicle"));
+                .orElseThrow(() -> new RuntimeException(ERROR_CREATING_VEHICLE));
         var vehicleResource = VehicleResourceFromEntityAssembler.toResourceFromEntity(vehicle);
         return ResponseEntity.status(HttpStatus.CREATED).body(vehicleResource);
     }
@@ -109,7 +115,7 @@ public class VehiclesController {
     public ResponseEntity<VehicleResource> getVehicleById(@PathVariable Long vehicleId) {
         var query = new GetVehicleByIdQuery(vehicleId);
         var vehicle = vehicleQueryService.handle(query)
-                .orElseThrow(() -> new RuntimeException("Vehicle not found"));
+                .orElseThrow(() -> new RuntimeException(ERROR_VEHICLE_NOT_FOUND));
         var resource = VehicleResourceFromEntityAssembler.toResourceFromEntity(vehicle);
         return ResponseEntity.ok(resource);
     }

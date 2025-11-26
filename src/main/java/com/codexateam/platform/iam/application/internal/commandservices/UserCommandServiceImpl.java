@@ -2,7 +2,6 @@ package com.codexateam.platform.iam.application.internal.commandservices;
 
 import com.codexateam.platform.iam.application.internal.outboundservices.hashing.HashingService;
 import com.codexateam.platform.iam.domain.exceptions.InvalidPasswordException;
-import com.codexateam.platform.iam.domain.exceptions.UserAlreadyExistsException;
 import com.codexateam.platform.iam.domain.exceptions.UserNotFoundException;
 import com.codexateam.platform.iam.domain.model.aggregates.User;
 import com.codexateam.platform.iam.domain.model.commands.SignInCommand;
@@ -10,6 +9,7 @@ import com.codexateam.platform.iam.domain.model.commands.SignUpCommand;
 import com.codexateam.platform.iam.domain.model.commands.UpdatePasswordCommand;
 import com.codexateam.platform.iam.domain.model.commands.UpdateUserCommand;
 import com.codexateam.platform.iam.domain.model.commands.DeleteUserCommand;
+import com.codexateam.platform.iam.domain.model.valueobjects.EmailAddress;
 import com.codexateam.platform.iam.domain.services.UserCommandService;
 import com.codexateam.platform.iam.infrastructure.persistence.jpa.repositories.UserRepository;
 import org.springframework.stereotype.Service;
@@ -37,9 +37,13 @@ public class UserCommandServiceImpl implements UserCommandService {
      */
     @Override
     public Optional<User> handle(SignUpCommand command) {
-        if (userRepository.existsByEmail(command.email())) {
-            throw new UserAlreadyExistsException(command.email());
+        // Convertir String a EmailAddress para la consulta
+        var emailAddress = new EmailAddress(command.email());
+
+        if (userRepository.existsByEmail(emailAddress)) { // <--- USAR EL VO
+            throw new IllegalArgumentException("User with email " + command.email() + " already exists");
         }
+        // El constructor de User ya se encarga de crear el EmailAddress internamente, así que esto queda igual
         var user = new User(command.name(), command.email(), hashingService.encode(command.password()), command.roles());
         userRepository.save(user);
         return Optional.of(user);
@@ -51,18 +55,24 @@ public class UserCommandServiceImpl implements UserCommandService {
      */
     @Override
     public Optional<User> handle(SignInCommand command) {
-        var user = userRepository.findByEmail(command.email());
+        // Convertir String a EmailAddress para la consulta
+        var emailAddress = new EmailAddress(command.email());
+
+        var user = userRepository.findByEmail(emailAddress); // <--- USAR EL VO
+
         if (user.isEmpty()) {
-            throw new UserNotFoundException(command.email());
+            throw new IllegalArgumentException("User not found");
         }
         if (!hashingService.matches(command.password(), user.get().getPassword())) {
-            throw new InvalidPasswordException();
+            throw new IllegalArgumentException("Invalid password");
         }
         return user;
     }
 
     /**
-     * Handles updating user profile (name, email)
+     * Handles updating user profile (name, email).
+     * @param command The command containing user ID and new profile data
+     * @return An Optional containing the updated user
      */
     @Override
     @Transactional
@@ -102,6 +112,7 @@ public class UserCommandServiceImpl implements UserCommandService {
 
     /**
      * Handles deleting a user.
+     * @param command The command containing the user ID to delete
      */
     @Override
     @Transactional

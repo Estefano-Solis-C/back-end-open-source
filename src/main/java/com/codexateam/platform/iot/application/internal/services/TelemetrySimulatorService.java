@@ -23,17 +23,14 @@ public class TelemetrySimulatorService {
     private static final Logger logger = LoggerFactory.getLogger(TelemetrySimulatorService.class);
 
     // Fixed simulation points in Lima, Peru
-    private static final double START_LAT = -12.046374;  // Lima Centro
-    private static final double START_LNG = -77.042793;
-    private static final double END_LAT = -12.050000;    // Callao
-    private static final double END_LNG = -77.112500;
+    private static final double START_LAT = -12.0464;  // Lima Centro
+    private static final double START_LNG = -77.0428;
+    private static final double END_LAT = -12.119;    // Miraflores area
+    private static final double END_LNG = -77.029;
 
     // Simulation parameters
-    private static final double BASE_SPEED_KMH = 60.0;
-    private static final double SPEED_VARIANCE = 15.0;
     private static final double INITIAL_FUEL_LEVEL = 100.0;
     private static final double FUEL_CONSUMPTION_RATE = 0.3; // % per point
-    private static final long DELAY_BETWEEN_POINTS_MS = 5000; // 5 seconds
 
     private final OpenRouteServiceApiClient routeClient;
     private final TelemetryRepository telemetryRepository;
@@ -48,6 +45,7 @@ public class TelemetrySimulatorService {
     /**
      * Starts an asynchronous simulation of vehicle telemetry along a real route.
      * The simulation runs in a background thread and doesn't block the caller.
+     * Implements a fallback mechanism with hardcoded coordinates if API fails.
      *
      * @param vehicleId The ID of the vehicle to simulate telemetry for
      */
@@ -55,29 +53,38 @@ public class TelemetrySimulatorService {
     public void startSimulation(Long vehicleId) {
         logger.info("Starting telemetry simulation for vehicle ID: {}", vehicleId);
 
-        // Validate that the route service is configured
-        if (!routeClient.isConfigured()) {
-            logger.error("OpenRouteService is not configured. Cannot start simulation for vehicle {}", vehicleId);
-            return;
-        }
-
         try {
-            // Fetch real route coordinates from OpenRouteService
-            logger.info("Fetching route from OpenRouteService: ({}, {}) -> ({}, {})",
-                    START_LAT, START_LNG, END_LAT, END_LNG);
+            List<double[]> routeCoordinates;
 
-            List<double[]> routeCoordinates = routeClient.getRouteCoordinates(
-                    START_LAT, START_LNG,
-                    END_LAT, END_LNG
-            );
+            // Try to fetch route from OpenRouteService API
+            if (routeClient.isConfigured()) {
+                logger.info("Fetching route from OpenRouteService: ({}, {}) -> ({}, {})",
+                        START_LAT, START_LNG, END_LAT, END_LNG);
 
-            if (routeCoordinates.isEmpty()) {
-                logger.error("No route coordinates returned from OpenRouteService for vehicle {}", vehicleId);
-                return;
+                routeCoordinates = routeClient.getRouteCoordinates(
+                        START_LAT, START_LNG,
+                        END_LAT, END_LNG
+                );
+            } else {
+                routeCoordinates = List.of(); // Empty list to trigger fallback
             }
 
-            logger.info("Route retrieved successfully with {} points. Starting simulation...",
-                    routeCoordinates.size());
+            // Check if API returned empty coordinates - use fallback
+            if (routeCoordinates.isEmpty()) {
+                logger.warn("Using fallback route due to API failure");
+
+                // Hardcoded fallback route in Lima, Peru (5 coordinates)
+                routeCoordinates = List.of(
+                        new double[]{-12.0464, -77.0428},   // Lima Centro (start)
+                        new double[]{-12.0700, -77.0380},   // Point 2
+                        new double[]{-12.0900, -77.0340},   // Point 3 (midway)
+                        new double[]{-12.1100, -77.0300},   // Point 4
+                        new double[]{-12.1190, -77.0290}    // Miraflores (end)
+                );
+            } else {
+                logger.info("Route retrieved successfully with {} points. Starting simulation...",
+                        routeCoordinates.size());
+            }
 
             // Initialize simulation state
             double currentFuelLevel = INITIAL_FUEL_LEVEL;
@@ -88,9 +95,8 @@ public class TelemetrySimulatorService {
                 double latitude = coordinate[0];
                 double longitude = coordinate[1];
 
-                // Calculate realistic speed with some variance
-                double speed = BASE_SPEED_KMH + ThreadLocalRandom.current().nextDouble(-SPEED_VARIANCE, SPEED_VARIANCE);
-                speed = Math.max(0, speed); // Ensure speed is not negative
+                // Set speed to random value between 30 and 60 km/h for moving effect
+                double speed = 30.0 + ThreadLocalRandom.current().nextDouble(30.0);
 
                 // Simulate fuel consumption
                 currentFuelLevel -= FUEL_CONSUMPTION_RATE;
@@ -115,9 +121,9 @@ public class TelemetrySimulatorService {
                         pointCount, routeCoordinates.size(), vehicleId, latitude, longitude,
                         String.format("%.2f", speed), String.format("%.2f", currentFuelLevel));
 
-                // Add delay to simulate real-time driving
+                // Add delay to simulate real-time driving (5 seconds)
                 try {
-                    Thread.sleep(DELAY_BETWEEN_POINTS_MS);
+                    Thread.sleep(5000);
                 } catch (InterruptedException e) {
                     logger.warn("Simulation interrupted for vehicle {}", vehicleId);
                     Thread.currentThread().interrupt();
@@ -140,6 +146,7 @@ public class TelemetrySimulatorService {
 
     /**
      * Starts a simulation with custom start and end points.
+     * Implements a fallback mechanism with hardcoded coordinates if API fails.
      *
      * @param vehicleId The ID of the vehicle
      * @param startLat Starting latitude
@@ -152,24 +159,35 @@ public class TelemetrySimulatorService {
         logger.info("Starting custom telemetry simulation for vehicle ID: {} from ({}, {}) to ({}, {})",
                 vehicleId, startLat, startLng, endLat, endLng);
 
-        if (!routeClient.isConfigured()) {
-            logger.error("OpenRouteService is not configured. Cannot start simulation for vehicle {}", vehicleId);
-            return;
-        }
-
         try {
-            List<double[]> routeCoordinates = routeClient.getRouteCoordinates(
-                    startLat, startLng,
-                    endLat, endLng
-            );
+            List<double[]> routeCoordinates;
 
-            if (routeCoordinates.isEmpty()) {
-                logger.error("No route coordinates returned from OpenRouteService for vehicle {}", vehicleId);
-                return;
+            // Try to fetch route from OpenRouteService API
+            if (routeClient.isConfigured()) {
+                routeCoordinates = routeClient.getRouteCoordinates(
+                        startLat, startLng,
+                        endLat, endLng
+                );
+            } else {
+                routeCoordinates = List.of(); // Empty list to trigger fallback
             }
 
-            logger.info("Custom route retrieved with {} points. Starting simulation...",
-                    routeCoordinates.size());
+            // Check if API returned empty coordinates - use fallback
+            if (routeCoordinates.isEmpty()) {
+                logger.warn("Using fallback route due to API failure");
+
+                // Hardcoded fallback route in Lima, Peru (5 coordinates)
+                routeCoordinates = List.of(
+                        new double[]{-12.0464, -77.0428},   // Lima Centro (start)
+                        new double[]{-12.0700, -77.0380},   // Point 2
+                        new double[]{-12.0900, -77.0340},   // Point 3 (midway)
+                        new double[]{-12.1100, -77.0300},   // Point 4
+                        new double[]{-12.1190, -77.0290}    // Miraflores (end)
+                );
+            } else {
+                logger.info("Custom route retrieved with {} points. Starting simulation...",
+                        routeCoordinates.size());
+            }
 
             double currentFuelLevel = INITIAL_FUEL_LEVEL;
             int pointCount = 0;
@@ -178,8 +196,8 @@ public class TelemetrySimulatorService {
                 double latitude = coordinate[0];
                 double longitude = coordinate[1];
 
-                double speed = BASE_SPEED_KMH + ThreadLocalRandom.current().nextDouble(-SPEED_VARIANCE, SPEED_VARIANCE);
-                speed = Math.max(0, speed);
+                // Set speed to random value between 30 and 60 km/h for moving effect
+                double speed = 30.0 + ThreadLocalRandom.current().nextDouble(30.0);
 
                 currentFuelLevel -= FUEL_CONSUMPTION_RATE;
                 currentFuelLevel = Math.max(0, currentFuelLevel);
@@ -199,8 +217,9 @@ public class TelemetrySimulatorService {
 
                 logger.debug("Telemetry point {}/{} saved for vehicle {}", pointCount, routeCoordinates.size(), vehicleId);
 
+                // Add delay to simulate real-time driving (5 seconds)
                 try {
-                    Thread.sleep(DELAY_BETWEEN_POINTS_MS);
+                    Thread.sleep(5000);
                 } catch (InterruptedException e) {
                     logger.warn("Simulation interrupted for vehicle {}", vehicleId);
                     Thread.currentThread().interrupt();

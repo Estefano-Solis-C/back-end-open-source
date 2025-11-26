@@ -1,6 +1,7 @@
 package com.codexateam.platform.iam.infrastructure.authorization.sfs.services;
 
 import com.codexateam.platform.iam.domain.model.aggregates.User;
+import com.codexateam.platform.iam.domain.model.valueobjects.EmailAddress;
 import com.codexateam.platform.iam.infrastructure.authorization.sfs.model.UserDetailsImpl;
 import com.codexateam.platform.iam.infrastructure.persistence.jpa.repositories.UserRepository;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -26,7 +27,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
      */
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        User user = userRepository.findByEmail(email)
+        // Convertir String a EmailAddress
+        var emailAddress = new EmailAddress(email);
+
+        User user = userRepository.findByEmail(emailAddress) // <--- USAR EL VO
                 .orElseThrow(() -> new UsernameNotFoundException("User Not Found with email: " + email));
         return UserDetailsImpl.build(user);
     }

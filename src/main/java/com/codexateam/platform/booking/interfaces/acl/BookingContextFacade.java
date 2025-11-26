@@ -4,6 +4,7 @@ import com.codexateam.platform.booking.domain.model.aggregates.Booking;
 import com.codexateam.platform.booking.domain.model.queries.GetBookingByVehicleIdAndDateQuery;
 import com.codexateam.platform.booking.domain.model.queries.GetBookingsByRenterIdQuery;
 import com.codexateam.platform.booking.domain.services.BookingQueryService;
+import com.codexateam.platform.booking.domain.model.valueobjects.BookingStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -11,6 +12,11 @@ import java.util.Optional;
 
 @Service
 public class BookingContextFacade {
+
+    /**
+     * Facade ACL para exponer operaciones del contexto Booking a otros bounded contexts
+     * sin acoplarlos con capas internas (controladores, repositorios).
+     */
 
     private final BookingQueryService bookingQueryService;
 
@@ -46,9 +52,9 @@ public class BookingContextFacade {
         Date now = new Date();
         return bookings.stream().anyMatch(b ->
                 b.getVehicleId().equals(vehicleId) && (
-                        "CANCELED".equalsIgnoreCase(b.getStatus()) ||
-                        "REJECTED".equalsIgnoreCase(b.getStatus()) ||
-                        ("CONFIRMED".equalsIgnoreCase(b.getStatus()) && b.getEndDate() != null && b.getEndDate().before(now))
+                        BookingStatus.CANCELED.equalsIgnoreCase(b.getStatus()) ||
+                        BookingStatus.REJECTED.equalsIgnoreCase(b.getStatus()) ||
+                        (BookingStatus.CONFIRMED.equalsIgnoreCase(b.getStatus()) && b.getEndDate() != null && b.getEndDate().before(now))
                 )
         );
     }

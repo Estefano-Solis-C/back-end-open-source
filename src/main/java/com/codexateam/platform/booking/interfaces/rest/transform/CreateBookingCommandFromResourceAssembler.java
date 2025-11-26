@@ -3,6 +3,9 @@ package com.codexateam.platform.booking.interfaces.rest.transform;
 import com.codexateam.platform.booking.domain.model.commands.CreateBookingCommand;
 import com.codexateam.platform.booking.interfaces.rest.resources.CreateBookingResource;
 
+/**
+ * Assembler to convert CreateBookingResource DTO to CreateBookingCommand.
+ */
 public class CreateBookingCommandFromResourceAssembler {
     /**
      * Converts a CreateBookingResource DTO to a CreateBookingCommand.

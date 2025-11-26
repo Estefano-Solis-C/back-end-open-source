@@ -3,6 +3,8 @@ package com.codexateam.platform.reviews.interfaces.rest;
 import com.codexateam.platform.iam.infrastructure.authorization.sfs.model.UserDetailsImpl;
 import com.codexateam.platform.reviews.domain.model.queries.GetReviewsByRenterIdQuery;
 import com.codexateam.platform.reviews.domain.model.queries.GetReviewsByVehicleIdQuery;
+import com.codexateam.platform.reviews.domain.model.queries.GetReviewByIdQuery;
+import com.codexateam.platform.reviews.domain.exceptions.ReviewNotFoundException;
 import com.codexateam.platform.reviews.domain.services.ReviewCommandService;
 import com.codexateam.platform.reviews.domain.services.ReviewQueryService;
 import com.codexateam.platform.reviews.interfaces.rest.resources.CreateReviewResource;
@@ -30,6 +32,11 @@ import java.util.List;
 @Tag(name = "Reviews", description = "Endpoints for managing reviews")
 public class ReviewsController {
 
+    // Constants to avoid hardcoded literals
+    private static final String ERROR_USER_NOT_AUTHENTICATED = "User not authenticated";
+    private static final String ERROR_CREATING_REVIEW = "Error creating review";
+    private static final String ANONYMOUS_USER = "anonymousUser";
+
     private final ReviewCommandService reviewCommandService;
     private final ReviewQueryService reviewQueryService;
 
@@ -44,8 +51,8 @@ public class ReviewsController {
      */
     private Long getAuthenticatedUserId() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
-            throw new SecurityException("User not authenticated");
+        if (authentication == null || !authentication.isAuthenticated() || ANONYMOUS_USER.equals(authentication.getPrincipal())) {
+            throw new SecurityException(ERROR_USER_NOT_AUTHENTICATED);
         }
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         return userDetails.getId();
@@ -68,7 +75,7 @@ public class ReviewsController {
         Long renterId = getAuthenticatedUserId();
         var command = CreateReviewCommandFromResourceAssembler.toCommandFromResource(resource, renterId);
         var review = reviewCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException("Error creating review"));
+                .orElseThrow(() -> new RuntimeException(ERROR_CREATING_REVIEW));
         var reviewResource = ReviewResourceFromEntityAssembler.toResourceFromEntity(review);
         return ResponseEntity.status(HttpStatus.CREATED).body(reviewResource);
     }
@@ -111,5 +118,24 @@ public class ReviewsController {
                 .map(ReviewResourceFromEntityAssembler::toResourceFromEntity)
                 .toList();
         return ResponseEntity.ok(resources);
+    }
+
+    /**
+     * Retrieves a single review by its ID.
+     * @param reviewId review identifier
+     * @return review resource if found
+     */
+    @GetMapping("/{reviewId}")
+    @Operation(summary = "Get Review by ID", description = "Retrieve a specific review by its ID")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Review found"),
+            @ApiResponse(responseCode = "404", description = "Review not found")
+    })
+    public ResponseEntity<ReviewResource> getReviewById(@PathVariable Long reviewId) {
+        var query = new GetReviewByIdQuery(reviewId);
+        var review = reviewQueryService.handle(query)
+                .orElseThrow(() -> new ReviewNotFoundException(reviewId));
+        var resource = ReviewResourceFromEntityAssembler.toResourceFromEntity(review);
+        return ResponseEntity.ok(resource);
     }
 }

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * JPA Repository interface for the Telemetry aggregate root.
@@ -21,4 +22,11 @@ public interface TelemetryRepository extends JpaRepository<Telemetry, Long> {
 
     // Delete all telemetry entries by vehicleId (cascade cleanup when deleting a vehicle)
     void deleteByVehicleId(Long vehicleId);
+
+    /**
+     * Finds the latest telemetry record for a specific vehicle ordered by createdAt descending.
+     */
+    Optional<Telemetry> findFirstByVehicleIdOrderByCreatedAtDesc(Long vehicleId);
+
+    List<Telemetry> findByVehicleId(Long vehicleId); // Added simple finder
 }
