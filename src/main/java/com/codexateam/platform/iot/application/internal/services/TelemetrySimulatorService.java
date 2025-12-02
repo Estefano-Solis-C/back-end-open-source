@@ -9,7 +9,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -44,6 +48,11 @@ public class TelemetrySimulatorService {
     private static final double FALLBACK_POINT_5_LAT = -12.1190;
     private static final double FALLBACK_POINT_5_LNG = -77.0290;
 
+    // In-memory caches to prevent repeated external API calls
+    private final Map<Long, List<double[]>> routeCache = new ConcurrentHashMap<>();
+    private final Map<Long, Integer> routeIndexCache = new ConcurrentHashMap<>();
+    private final Map<Long, Double> fuelCache = new ConcurrentHashMap<>();
+
     private final OpenRouteServiceApiClient routeClient;
     private final TelemetryRepository telemetryRepository;
 
@@ -52,6 +61,75 @@ public class TelemetrySimulatorService {
             TelemetryRepository telemetryRepository) {
         this.routeClient = routeClient;
         this.telemetryRepository = telemetryRepository;
+    }
+
+    /**
+     * Non-blocking method to fetch the next telemetry point for a given vehicle.
+     * On the first call for a vehicleId, it generates and caches the full route.
+     * Subsequent calls return the next cached point using a simple counter.
+     * This avoids calling the external API multiple times and prevents timeouts.
+     *
+     * @param vehicleId vehicle identifier (can represent bookingId)
+     * @return Optional<Telemetry> with the next telemetry point; empty if route not available
+     */
+    public Optional<Telemetry> fetchNextTelemetry(Long vehicleId) {
+        // Ensure the route is loaded in cache
+        routeCache.computeIfAbsent(vehicleId, id -> {
+            List<double[]> coords = loadRouteOrFallback(START_LAT, START_LNG, END_LAT, END_LNG);
+            if (coords.isEmpty()) {
+                // Store an empty list to avoid repeated attempts
+                return new ArrayList<>();
+            }
+            logger.info("Cached route for vehicle {} with {} points", vehicleId, coords.size());
+            // Initialize index and fuel for this vehicle
+            routeIndexCache.put(vehicleId, 0);
+            fuelCache.put(vehicleId, INITIAL_FUEL_LEVEL);
+            return coords;
+        });
+
+        List<double[]> route = routeCache.get(vehicleId);
+        if (route == null || route.isEmpty()) {
+            logger.warn("No route available for vehicle {}", vehicleId);
+            return Optional.empty();
+        }
+
+        int currentIndex = routeIndexCache.computeIfAbsent(vehicleId, k -> 0);
+        if (currentIndex >= route.size()) {
+            // Loop to start for continuous simulation
+            currentIndex = 0;
+        }
+
+        double[] coordinate = route.get(currentIndex);
+        double latitude = coordinate[0];
+        double longitude = coordinate[1];
+
+        // Speed between 30 and 60 km/h
+        double speed = 30.0 + ThreadLocalRandom.current().nextDouble(30.0);
+
+        // Fuel consumption using cached fuel
+        double currentFuel = fuelCache.getOrDefault(vehicleId, INITIAL_FUEL_LEVEL);
+        currentFuel = Math.max(0, currentFuel - FUEL_CONSUMPTION_RATE);
+        fuelCache.put(vehicleId, currentFuel);
+
+        RecordTelemetryCommand command = new RecordTelemetryCommand(
+                vehicleId,
+                latitude,
+                longitude,
+                speed,
+                currentFuel
+        );
+
+        Telemetry telemetry = new Telemetry(command);
+        telemetryRepository.save(telemetry);
+
+        // Advance index for next request
+        routeIndexCache.put(vehicleId, currentIndex + 1);
+
+        logger.debug("Next telemetry for vehicle {} at index {}: lat={}, lng={}, speed={}, fuel={}",
+                vehicleId, currentIndex, latitude, longitude,
+                String.format("%.2f", speed), String.format("%.2f", currentFuel));
+
+        return Optional.of(telemetry);
     }
 
     /**
@@ -98,12 +176,15 @@ public class TelemetrySimulatorService {
                         routeCoordinates.size());
             }
 
+            // Apply linear interpolation to create smooth movement (10 steps between each point)
+            List<double[]> interpolatedRoute = interpolateRoute(routeCoordinates, 10);
+
             // Initialize simulation state
             double currentFuelLevel = INITIAL_FUEL_LEVEL;
             int pointCount = 0;
 
-            // Iterate through each coordinate point on the route
-            for (double[] coordinate : routeCoordinates) {
+            // Iterate through each coordinate point on the interpolated route
+            for (double[] coordinate : interpolatedRoute) {
                 double latitude = coordinate[0];
                 double longitude = coordinate[1];
 
@@ -130,12 +211,12 @@ public class TelemetrySimulatorService {
                 pointCount++;
 
                 logger.debug("Telemetry point {}/{} saved for vehicle {}: lat={}, lng={}, speed={}, fuel={}",
-                        pointCount, routeCoordinates.size(), vehicleId, latitude, longitude,
+                        pointCount, interpolatedRoute.size(), vehicleId, latitude, longitude,
                         String.format("%.2f", speed), String.format("%.2f", currentFuelLevel));
 
-                // Add delay to simulate real-time driving (5 seconds)
+                // Add delay to simulate real-time driving (1 second for smoother updates)
                 try {
-                    Thread.sleep(5000);
+                    Thread.sleep(1000);
                 } catch (InterruptedException e) {
                     logger.warn("Simulation interrupted for vehicle {}", vehicleId);
                     Thread.currentThread().interrupt();
@@ -190,21 +271,24 @@ public class TelemetrySimulatorService {
 
                 // Hardcoded fallback route in Lima, Peru (5 coordinates)
                 routeCoordinates = List.of(
-                        new double[]{-12.0464, -77.0428},   // Lima Centro (start)
-                        new double[]{-12.0700, -77.0380},   // Point 2
-                        new double[]{-12.0900, -77.0340},   // Point 3 (midway)
-                        new double[]{-12.1100, -77.0300},   // Point 4
-                        new double[]{-12.1190, -77.0290}    // Miraflores (end)
+                        new double[]{FALLBACK_POINT_1_LAT, FALLBACK_POINT_1_LNG},   // Lima Centro (start)
+                        new double[]{FALLBACK_POINT_2_LAT, FALLBACK_POINT_2_LNG},   // Point 2
+                        new double[]{FALLBACK_POINT_3_LAT, FALLBACK_POINT_3_LNG},   // Point 3 (midway)
+                        new double[]{FALLBACK_POINT_4_LAT, FALLBACK_POINT_4_LNG},   // Point 4
+                        new double[]{FALLBACK_POINT_5_LAT, FALLBACK_POINT_5_LNG}    // Miraflores (end)
                 );
             } else {
                 logger.info("Custom route retrieved with {} points. Starting simulation...",
                         routeCoordinates.size());
             }
 
+            // Apply linear interpolation to create smooth movement (10 steps between each point)
+            List<double[]> interpolatedRoute = interpolateRoute(routeCoordinates, 10);
+
             double currentFuelLevel = INITIAL_FUEL_LEVEL;
             int pointCount = 0;
 
-            for (double[] coordinate : routeCoordinates) {
+            for (double[] coordinate : interpolatedRoute) {
                 double latitude = coordinate[0];
                 double longitude = coordinate[1];
 
@@ -227,11 +311,11 @@ public class TelemetrySimulatorService {
 
                 pointCount++;
 
-                logger.debug("Telemetry point {}/{} saved for vehicle {}", pointCount, routeCoordinates.size(), vehicleId);
+                logger.debug("Telemetry point {}/{} saved for vehicle {}", pointCount, interpolatedRoute.size(), vehicleId);
 
-                // Add delay to simulate real-time driving (5 seconds)
+                // Add delay to simulate real-time driving (1 second for smoother updates)
                 try {
-                    Thread.sleep(5000);
+                    Thread.sleep(1000);
                 } catch (InterruptedException e) {
                     logger.warn("Simulation interrupted for vehicle {}", vehicleId);
                     Thread.currentThread().interrupt();
@@ -250,5 +334,78 @@ public class TelemetrySimulatorService {
             logger.error("Error during custom telemetry simulation for vehicle {}", vehicleId, e);
         }
     }
-}
 
+    /**
+     * Helper to load route from external API or use local fallback immediately.
+     * Never blocks callers: if external API fails or returns empty, returns fallback.
+     */
+    private List<double[]> loadRouteOrFallback(double startLat, double startLng, double endLat, double endLng) {
+        try {
+            List<double[]> routeCoordinates = List.of();
+            if (routeClient.isConfigured()) {
+                routeCoordinates = routeClient.getRouteCoordinates(startLat, startLng, endLat, endLng);
+            }
+            if (routeCoordinates == null || routeCoordinates.isEmpty()) {
+                // Provide local fallback instantly
+                return List.of(
+                        new double[]{FALLBACK_POINT_1_LAT, FALLBACK_POINT_1_LNG},
+                        new double[]{FALLBACK_POINT_2_LAT, FALLBACK_POINT_2_LNG},
+                        new double[]{FALLBACK_POINT_3_LAT, FALLBACK_POINT_3_LNG},
+                        new double[]{FALLBACK_POINT_4_LAT, FALLBACK_POINT_4_LNG},
+                        new double[]{FALLBACK_POINT_5_LAT, FALLBACK_POINT_5_LNG}
+                );
+            }
+            return routeCoordinates;
+        } catch (Exception e) {
+            logger.warn("Error loading route from external API, using fallback: {}", e.getMessage());
+            return List.of(
+                    new double[]{FALLBACK_POINT_1_LAT, FALLBACK_POINT_1_LNG},
+                    new double[]{FALLBACK_POINT_2_LAT, FALLBACK_POINT_2_LNG},
+                    new double[]{FALLBACK_POINT_3_LAT, FALLBACK_POINT_3_LNG},
+                    new double[]{FALLBACK_POINT_4_LAT, FALLBACK_POINT_4_LNG},
+                    new double[]{FALLBACK_POINT_5_LAT, FALLBACK_POINT_5_LNG}
+            );
+        }
+    }
+
+    /**
+     * Interpolates a route by generating intermediate points between each pair of coordinates.
+     * This prevents "teleporting" by creating smoother transitions between waypoints.
+     *
+     * @param originalPoints The original route coordinates from the API or fallback
+     * @param stepsPerSegment Number of intermediate points to generate between each pair (default: 10)
+     * @return A densified list with interpolated points for smooth simulation
+     */
+    private List<double[]> interpolateRoute(List<double[]> originalPoints, int stepsPerSegment) {
+        if (originalPoints == null || originalPoints.size() < 2) {
+            logger.warn("Cannot interpolate route with less than 2 points");
+            return originalPoints != null ? originalPoints : List.of();
+        }
+
+        List<double[]> interpolatedRoute = new ArrayList<>();
+
+        for (int i = 0; i < originalPoints.size() - 1; i++) {
+            double[] start = originalPoints.get(i);
+            double[] end = originalPoints.get(i + 1);
+
+            // Add the starting point
+            interpolatedRoute.add(start);
+
+            // Generate intermediate points using linear interpolation
+            for (int step = 1; step < stepsPerSegment; step++) {
+                double ratio = (double) step / stepsPerSegment;
+                double interpolatedLat = start[0] + (end[0] - start[0]) * ratio;
+                double interpolatedLng = start[1] + (end[1] - start[1]) * ratio;
+                interpolatedRoute.add(new double[]{interpolatedLat, interpolatedLng});
+            }
+        }
+
+        // Add the final destination point
+        interpolatedRoute.add(originalPoints.get(originalPoints.size() - 1));
+
+        logger.info("Route interpolated: {} original points → {} interpolated points",
+                originalPoints.size(), interpolatedRoute.size());
+
+        return interpolatedRoute;
+    }
+}

@@ -95,13 +95,21 @@ public class AutomaticTelemetryGeneratorService {
      */
     @Scheduled(fixedRate = 5000)
     public void generateTelemetryForActiveTrips() {
+        logger.info("========== SCHEDULED TASK STARTED: generateTelemetryForActiveTrips ==========");
+
         Date currentTimestamp = new Date();
+        logger.info("Current timestamp for query: {}", currentTimestamp);
+
         List<Booking> activeBookings = bookingRepository.findByBookingStatus_StatusAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
                 BOOKING_STATUS_CONFIRMED,
                 currentTimestamp,
                 currentTimestamp);
+
+        logger.info("Active bookings found: {}", activeBookings.size());
+
         if (activeBookings.isEmpty()) {
-            logger.debug("No active bookings found at {}", currentTimestamp);
+            logger.warn("No active confirmed bookings found for current time. Check: 1) Booking Status = '{}', 2) Start Date <= {}, 3) End Date >= {}",
+                    BOOKING_STATUS_CONFIRMED, currentTimestamp, currentTimestamp);
             return;
         }
 
@@ -109,6 +117,11 @@ public class AutomaticTelemetryGeneratorService {
 
         for (Booking booking : activeBookings) {
             Long vehicleId = booking.getVehicleId();
+            Long bookingId = booking.getId();
+            logger.info("Processing booking ID: {}, Vehicle ID: {}, Status: {}, Start: {}, End: {}",
+                    bookingId, vehicleId,
+                    booking.getBookingStatus() != null ? booking.getBookingStatus().getStatus() : "NULL",
+                    booking.getStartDate(), booking.getEndDate());
 
             try {
                 Date lastBeat = lastHeartbeatMap.get(vehicleId);

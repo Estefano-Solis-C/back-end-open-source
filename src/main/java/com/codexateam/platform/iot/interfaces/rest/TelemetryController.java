@@ -26,9 +26,12 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.scheduling.annotation.Scheduled;
+
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * REST Controller for the IoT bounded context.
@@ -53,6 +56,9 @@ public class TelemetryController {
     private final AutomaticTelemetryGeneratorService automaticTelemetryGeneratorService;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
+
+    // Cache for planned routes to avoid repeated external API calls
+    private final Map<Long, List<List<Double>>> routeCache = new ConcurrentHashMap<>();
 
     public TelemetryController(
             TelemetryCommandService telemetryCommandService,
@@ -169,10 +175,11 @@ public class TelemetryController {
             return ResponseEntity.notFound().build();
         }
 
-        var plannedRoutePoints = automaticTelemetryGeneratorService.getPlannedRoute(vehicleId);
-        List<List<Double>> plannedRoute = plannedRoutePoints.stream()
-                .map(p -> List.of(p[0], p[1]))
-                .toList();
+        // Use cached planned route if available; otherwise fetch and cache
+        List<List<Double>> plannedRoute = routeCache.computeIfAbsent(vehicleId, id -> {
+            var plannedRoutePoints = automaticTelemetryGeneratorService.getPlannedRoute(id);
+            return plannedRoutePoints.stream().map(p -> List.of(p[0], p[1])).toList();
+        });
 
         var resource = TelemetryResourceFromEntityAssembler
                 .toResourceFromEntity(optionalTelemetry.get(), plannedRoute);
@@ -262,5 +269,14 @@ public class TelemetryController {
                 "note", "Simulation is running asynchronously. Use GET /api/v1/telemetry/vehicle/" + vehicleId + " to view results."
             )
         );
+    }
+
+    /**
+     * Clears the route cache periodically to prevent memory leaks.
+     * Runs once every 24 hours.
+     */
+    @Scheduled(fixedRate = 24L * 60L * 60L * 1000L)
+    public void clearRouteCachePeriodically() {
+        routeCache.clear();
     }
 }
