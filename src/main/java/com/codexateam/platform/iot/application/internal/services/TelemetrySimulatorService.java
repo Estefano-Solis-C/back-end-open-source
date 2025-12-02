@@ -36,17 +36,6 @@ public class TelemetrySimulatorService {
     private static final double INITIAL_FUEL_LEVEL = 100.0;
     private static final double FUEL_CONSUMPTION_RATE = 0.3;
 
-    // Fallback route coordinates (Lima, Peru)
-    private static final double FALLBACK_POINT_1_LAT = -12.0464;
-    private static final double FALLBACK_POINT_1_LNG = -77.0428;
-    private static final double FALLBACK_POINT_2_LAT = -12.0700;
-    private static final double FALLBACK_POINT_2_LNG = -77.0380;
-    private static final double FALLBACK_POINT_3_LAT = -12.0900;
-    private static final double FALLBACK_POINT_3_LNG = -77.0340;
-    private static final double FALLBACK_POINT_4_LAT = -12.1100;
-    private static final double FALLBACK_POINT_4_LNG = -77.0300;
-    private static final double FALLBACK_POINT_5_LAT = -12.1190;
-    private static final double FALLBACK_POINT_5_LNG = -77.0290;
 
     // In-memory caches to prevent repeated external API calls
     private final Map<Long, List<double[]>> routeCache = new ConcurrentHashMap<>();
@@ -159,18 +148,10 @@ public class TelemetrySimulatorService {
                 routeCoordinates = List.of(); // Empty list to trigger fallback
             }
 
-            // Check if API returned empty coordinates - use fallback
+            // Check if API returned empty coordinates - use high-density fallback
             if (routeCoordinates.isEmpty()) {
-                logger.warn("Using fallback route due to API failure");
-
-                // Fallback route in Lima, Peru (5 coordinates)
-                routeCoordinates = List.of(
-                        new double[]{FALLBACK_POINT_1_LAT, FALLBACK_POINT_1_LNG},   // Lima Centro (start)
-                        new double[]{FALLBACK_POINT_2_LAT, FALLBACK_POINT_2_LNG},   // Point 2
-                        new double[]{FALLBACK_POINT_3_LAT, FALLBACK_POINT_3_LNG},   // Point 3 (midway)
-                        new double[]{FALLBACK_POINT_4_LAT, FALLBACK_POINT_4_LNG},   // Point 4
-                        new double[]{FALLBACK_POINT_5_LAT, FALLBACK_POINT_5_LNG}    // Miraflores (end)
-                );
+                logger.warn("Using high-density fallback route due to API failure");
+                routeCoordinates = generateHighDensityFallbackRoute(START_LAT, START_LNG, END_LAT, END_LNG);
             } else {
                 logger.info("Route retrieved successfully with {} points. Starting simulation...",
                         routeCoordinates.size());
@@ -265,18 +246,10 @@ public class TelemetrySimulatorService {
                 routeCoordinates = List.of(); // Empty list to trigger fallback
             }
 
-            // Check if API returned empty coordinates - use fallback
+            // Check if API returned empty coordinates - use high-density fallback
             if (routeCoordinates.isEmpty()) {
-                logger.warn("Using fallback route due to API failure");
-
-                // Hardcoded fallback route in Lima, Peru (5 coordinates)
-                routeCoordinates = List.of(
-                        new double[]{FALLBACK_POINT_1_LAT, FALLBACK_POINT_1_LNG},   // Lima Centro (start)
-                        new double[]{FALLBACK_POINT_2_LAT, FALLBACK_POINT_2_LNG},   // Point 2
-                        new double[]{FALLBACK_POINT_3_LAT, FALLBACK_POINT_3_LNG},   // Point 3 (midway)
-                        new double[]{FALLBACK_POINT_4_LAT, FALLBACK_POINT_4_LNG},   // Point 4
-                        new double[]{FALLBACK_POINT_5_LAT, FALLBACK_POINT_5_LNG}    // Miraflores (end)
-                );
+                logger.warn("Using high-density fallback route due to API failure for custom coordinates");
+                routeCoordinates = generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
             } else {
                 logger.info("Custom route retrieved with {} points. Starting simulation...",
                         routeCoordinates.size());
@@ -338,6 +311,11 @@ public class TelemetrySimulatorService {
     /**
      * Helper to load route from external API or use local fallback immediately.
      * Never blocks callers: if external API fails or returns empty, returns fallback.
+     *
+     * Fallback Strategy (High Density Path):
+     * - Calculates distance between start and end coordinates
+     * - Generates 1 intermediate point per 10 meters (minimum 100 points)
+     * - Ensures simulation lasts several minutes instead of teleporting
      */
     private List<double[]> loadRouteOrFallback(double startLat, double startLng, double endLat, double endLng) {
         try {
@@ -346,26 +324,87 @@ public class TelemetrySimulatorService {
                 routeCoordinates = routeClient.getRouteCoordinates(startLat, startLng, endLat, endLng);
             }
             if (routeCoordinates == null || routeCoordinates.isEmpty()) {
-                // Provide local fallback instantly
-                return List.of(
-                        new double[]{FALLBACK_POINT_1_LAT, FALLBACK_POINT_1_LNG},
-                        new double[]{FALLBACK_POINT_2_LAT, FALLBACK_POINT_2_LNG},
-                        new double[]{FALLBACK_POINT_3_LAT, FALLBACK_POINT_3_LNG},
-                        new double[]{FALLBACK_POINT_4_LAT, FALLBACK_POINT_4_LNG},
-                        new double[]{FALLBACK_POINT_5_LAT, FALLBACK_POINT_5_LNG}
-                );
+                // Generate high-density fallback route using linear interpolation
+                logger.warn("External API failed or returned empty. Generating high-density fallback route.");
+                return generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
             }
             return routeCoordinates;
         } catch (Exception e) {
-            logger.warn("Error loading route from external API, using fallback: {}", e.getMessage());
-            return List.of(
-                    new double[]{FALLBACK_POINT_1_LAT, FALLBACK_POINT_1_LNG},
-                    new double[]{FALLBACK_POINT_2_LAT, FALLBACK_POINT_2_LNG},
-                    new double[]{FALLBACK_POINT_3_LAT, FALLBACK_POINT_3_LNG},
-                    new double[]{FALLBACK_POINT_4_LAT, FALLBACK_POINT_4_LNG},
-                    new double[]{FALLBACK_POINT_5_LAT, FALLBACK_POINT_5_LNG}
-            );
+            logger.warn("Error loading route from external API, using high-density fallback: {}", e.getMessage());
+            return generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
         }
+    }
+
+    /**
+     * Generates a high-density fallback route with linear interpolation.
+     * Calculates the distance between start and end, then generates intermediate points
+     * to ensure smooth and long-duration simulation (minimum 100 points).
+     *
+     * This prevents the simulation from finishing instantly when the external API fails.
+     *
+     * @param startLat Starting latitude
+     * @param startLng Starting longitude
+     * @param endLat Ending latitude
+     * @param endLng Ending longitude
+     * @return List of densely interpolated coordinate points
+     */
+    private List<double[]> generateHighDensityFallbackRoute(double startLat, double startLng, double endLat, double endLng) {
+        // Calculate approximate distance using Haversine formula (in meters)
+        double distance = calculateDistance(startLat, startLng, endLat, endLng);
+
+        // Generate 1 point per 10 meters, with a minimum of 100 points
+        int numberOfPoints = Math.max(100, (int) (distance / 10.0));
+
+        logger.info("Generating fallback route: distance={} meters, generating {} intermediate points",
+                    String.format("%.2f", distance), numberOfPoints);
+
+        List<double[]> fallbackRoute = new ArrayList<>(numberOfPoints + 1);
+
+        // Add start point
+        fallbackRoute.add(new double[]{startLat, startLng});
+
+        // Generate intermediate points using linear interpolation
+        for (int i = 1; i < numberOfPoints; i++) {
+            double ratio = (double) i / numberOfPoints;
+            double interpolatedLat = startLat + (endLat - startLat) * ratio;
+            double interpolatedLng = startLng + (endLng - startLng) * ratio;
+            fallbackRoute.add(new double[]{interpolatedLat, interpolatedLng});
+        }
+
+        // Add end point
+        fallbackRoute.add(new double[]{endLat, endLng});
+
+        logger.info("High-density fallback route generated with {} total points", fallbackRoute.size());
+        return fallbackRoute;
+    }
+
+    /**
+     * Calculates the distance between two coordinates using the Haversine formula.
+     * Returns the distance in meters.
+     *
+     * @param lat1 Latitude of first point
+     * @param lng1 Longitude of first point
+     * @param lat2 Latitude of second point
+     * @param lng2 Longitude of second point
+     * @return Distance in meters
+     */
+    private double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+        final double EARTH_RADIUS_METERS = 6371000.0; // Earth's radius in meters
+
+        // Convert degrees to radians
+        double lat1Rad = Math.toRadians(lat1);
+        double lat2Rad = Math.toRadians(lat2);
+        double deltaLatRad = Math.toRadians(lat2 - lat1);
+        double deltaLngRad = Math.toRadians(lng2 - lng1);
+
+        // Haversine formula
+        double a = Math.sin(deltaLatRad / 2) * Math.sin(deltaLatRad / 2) +
+                   Math.cos(lat1Rad) * Math.cos(lat2Rad) *
+                   Math.sin(deltaLngRad / 2) * Math.sin(deltaLngRad / 2);
+
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return EARTH_RADIUS_METERS * c;
     }
 
     /**
@@ -401,7 +440,7 @@ public class TelemetrySimulatorService {
         }
 
         // Add the final destination point
-        interpolatedRoute.add(originalPoints.get(originalPoints.size() - 1));
+        interpolatedRoute.add(originalPoints.getLast());
 
         logger.info("Route interpolated: {} original points → {} interpolated points",
                 originalPoints.size(), interpolatedRoute.size());

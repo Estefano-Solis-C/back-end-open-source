@@ -192,8 +192,8 @@ public class AutomaticTelemetryGeneratorService {
                         startPoint[0], startPoint[1], endPoint[0], endPoint[1]
                 );
                 if (plannedPath.isEmpty()) {
-                    logger.warn("Route API failed/empty for vehicle {}. Using interpolated fallback path.", vehicleId);
-                    plannedPath = generateInterpolatedPath(startPoint, endPoint, 20);
+                    logger.warn("Route API failed/empty for vehicle {}. Using high-density fallback path.", vehicleId);
+                    plannedPath = generateHighDensityFallbackPath(startPoint, endPoint);
                 }
                 plannedPath = decimateRoute(plannedPath);
 
@@ -317,6 +317,84 @@ public class AutomaticTelemetryGeneratorService {
             path.add(new double[]{lat, lng});
         }
         return path;
+    }
+
+    /**
+     * Generates a high-density fallback path with linear interpolation.
+     * Calculates the distance between start and end, then generates intermediate points
+     * to ensure smooth and long-duration simulation (minimum 100 points).
+     *
+     * This prevents the simulation from finishing instantly when the external API fails.
+     * Strategy: 1 point per 10 meters of distance, minimum 100 points.
+     *
+     * @param start Starting coordinate [lat, lng]
+     * @param end Ending coordinate [lat, lng]
+     * @return List of densely interpolated coordinate points bounded to Lima
+     */
+    private List<double[]> generateHighDensityFallbackPath(double[] start, double[] end) {
+        double startLat = start[0];
+        double startLng = start[1];
+        double endLat = end[0];
+        double endLng = end[1];
+
+        // Calculate approximate distance using Haversine formula (in meters)
+        double distance = calculateDistance(startLat, startLng, endLat, endLng);
+
+        // Generate 1 point per 10 meters, with a minimum of 100 points
+        int numberOfPoints = Math.max(100, (int) (distance / 10.0));
+
+        logger.info("Generating high-density fallback path: distance={} meters, {} points",
+                    String.format(Locale.US, "%.2f", distance), numberOfPoints);
+
+        List<double[]> fallbackPath = new ArrayList<>(numberOfPoints + 1);
+
+        // Add start point
+        fallbackPath.add(boundToLima(start));
+
+        // Generate intermediate points using linear interpolation
+        for (int i = 1; i < numberOfPoints; i++) {
+            double ratio = (double) i / numberOfPoints;
+            double interpolatedLat = startLat + (endLat - startLat) * ratio;
+            double interpolatedLng = startLng + (endLng - startLng) * ratio;
+            interpolatedLat = ensureWithinBounds(interpolatedLat, LIMA_LAT_MIN, LIMA_LAT_MAX);
+            interpolatedLng = ensureWithinBounds(interpolatedLng, LIMA_LNG_MIN, LIMA_LNG_MAX);
+            fallbackPath.add(new double[]{interpolatedLat, interpolatedLng});
+        }
+
+        // Add end point
+        fallbackPath.add(boundToLima(end));
+
+        logger.info("High-density fallback path generated with {} total points", fallbackPath.size());
+        return fallbackPath;
+    }
+
+    /**
+     * Calculates the distance between two coordinates using the Haversine formula.
+     * Returns the distance in meters.
+     *
+     * @param lat1 Latitude of first point
+     * @param lng1 Longitude of first point
+     * @param lat2 Latitude of second point
+     * @param lng2 Longitude of second point
+     * @return Distance in meters
+     */
+    private double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+        final double EARTH_RADIUS_METERS = 6371000.0; // Earth's radius in meters
+
+        // Convert degrees to radians
+        double lat1Rad = Math.toRadians(lat1);
+        double lat2Rad = Math.toRadians(lat2);
+        double deltaLatRad = Math.toRadians(lat2 - lat1);
+        double deltaLngRad = Math.toRadians(lng2 - lng1);
+
+        // Haversine formula
+        double a = Math.sin(deltaLatRad / 2) * Math.sin(deltaLatRad / 2) +
+                   Math.cos(lat1Rad) * Math.cos(lat2Rad) *
+                   Math.sin(deltaLngRad / 2) * Math.sin(deltaLngRad / 2);
+
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return EARTH_RADIUS_METERS * c;
     }
 
     /**
