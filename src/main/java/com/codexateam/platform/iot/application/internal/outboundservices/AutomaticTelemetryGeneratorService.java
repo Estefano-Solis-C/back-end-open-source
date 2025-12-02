@@ -120,7 +120,7 @@ public class AutomaticTelemetryGeneratorService {
             Long bookingId = booking.getId();
             logger.info("Processing booking ID: {}, Vehicle ID: {}, Status: {}, Start: {}, End: {}",
                     bookingId, vehicleId,
-                    booking.getBookingStatus() != null ? booking.getBookingStatus().getStatus() : "NULL",
+                    booking.getBookingStatus() != null ? booking.getBookingStatus().status() : "NULL",
                     booking.getStartDate(), booking.getEndDate());
 
             try {
