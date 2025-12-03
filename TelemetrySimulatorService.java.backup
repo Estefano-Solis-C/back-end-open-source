@@ -1,0 +1,392 @@
+package com.codexateam.platform.iot.application.internal.services;
+
+import com.codexateam.platform.iot.domain.model.aggregates.Telemetry;
+import com.codexateam.platform.iot.domain.model.commands.RecordTelemetryCommand;
+import com.codexateam.platform.iot.infrastructure.external.OpenRouteServiceApiClient;
+import com.codexateam.platform.iot.infrastructure.persistence.jpa.repositories.TelemetryRepository;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+
+/**
+ * Service for simulating realistic vehicle telemetry data.
+ * Uses OpenRouteService API to fetch real road coordinates and simulates
+ * a vehicle traveling along that route with realistic speed and fuel consumption.
+ */
+@Service
+public class TelemetrySimulatorService {
+
+    private static final double START_LAT = -12.0464;
+    private static final double START_LNG = -77.0428;
+    private static final double INITIAL_FUEL_LEVEL = 100.0;
+    private static final double FUEL_CONSUMPTION_RATE = 0.3;
+
+    private final OpenRouteServiceApiClient routeClient;
+    private final TelemetryRepository telemetryRepository;
+
+    public TelemetrySimulatorService(
+            OpenRouteServiceApiClient routeClient,
+            TelemetryRepository telemetryRepository) {
+        this.routeClient = routeClient;
+        this.telemetryRepository = telemetryRepository;
+    }
+
+
+    /**
+     * Starts an asynchronous simulation of vehicle telemetry along a real route.
+     * The simulation runs in a background thread and doesn't block the caller.
+     * Implements a fallback mechanism with hardcoded coordinates if API fails.
+     *
+     * @param vehicleId The ID of the vehicle to simulate telemetry for
+     */
+    @Async
+    public void startSimulation(Long vehicleId) {
+
+        try {
+            double currentFuelLevel = INITIAL_FUEL_LEVEL;
+            double currentLat = START_LAT;
+            double currentLng = START_LNG;
+            int totalPointCount = 0;
+
+            // Infinite navigation loop
+            while (true) {
+                double destLat = -12.13 + ThreadLocalRandom.current().nextDouble(0.09);
+                double destLng = -77.08 + ThreadLocalRandom.current().nextDouble(0.13);
+
+                List<double[]> routeCoordinates;
+
+                if (routeClient.isConfigured()) {
+                    routeCoordinates = routeClient.getRouteCoordinates(currentLat, currentLng, destLat, destLng);
+                } else {
+                    routeCoordinates = List.of();
+                }
+
+                if (routeCoordinates.isEmpty()) {
+                    routeCoordinates = generateHighDensityFallbackRoute(currentLat, currentLng, destLat, destLng);
+                }
+
+                List<double[]> interpolatedRoute = interpolateRoute(routeCoordinates, 10);
+
+                // Navigate through current route
+                for (double[] coordinate : interpolatedRoute) {
+                    double latitude = coordinate[0];
+                    double longitude = coordinate[1];
+
+                    // Random speed between 30 and 60 km/h
+                    double speed = 30.0 + ThreadLocalRandom.current().nextDouble(30.0);
+
+                    // Consume fuel
+                    currentFuelLevel -= FUEL_CONSUMPTION_RATE;
+                    currentFuelLevel = Math.max(0, currentFuelLevel);
+
+                    // Check if refueling is needed
+                    if (currentFuelLevel <= 0) {
+
+                        // Save stopped telemetry with speed=0 and fuel=0 (already integers)
+                        RecordTelemetryCommand stopCommand = new RecordTelemetryCommand(
+                        telemetryRepository.save(new Telemetry(stopCommand));
+
+                        // Simulate refueling time (5 seconds)
+                        try {
+                            Thread.sleep(5000);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+
+                        // Refuel to 100%
+                        currentFuelLevel = INITIAL_FUEL_LEVEL;
+                    }
+
+                    // Round speed and fuel to integers for clean database storage
+                    double roundedSpeed = Math.round(speed);
+                    double roundedFuel = Math.round(currentFuelLevel);
+
+                    // Save telemetry with integer values
+                    RecordTelemetryCommand command = new RecordTelemetryCommand(
+                    Telemetry telemetry = new Telemetry(command);
+                    telemetryRepository.save(telemetry);
+
+                    totalPointCount++;
+
+
+                    // Simulate real-time driving with random delay (1000-2000ms for natural timing)
+                    try {
+                        long randomDelay = ThreadLocalRandom.current().nextLong(1000, 2001);
+                        Thread.sleep(randomDelay);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+
+                // Update current position to last point of route (destination reached)
+                currentLat = destLat;
+                currentLng = destLng;
+
+            }
+
+        } catch (Exception e) {
+        }
+    }
+
+    /**
+     * Starts a simulation with custom start and end points.
+     * Implements a fallback mechanism with hardcoded coordinates if API fails.
+     *
+     * @param vehicleId The ID of the vehicle
+     * @param startLat Starting latitude
+     * @param startLng Starting longitude
+     * @param endLat Ending latitude
+     * @param endLng Ending longitude
+     */
+    @Async
+    public void startSimulation(Long vehicleId, double startLat, double startLng, double endLat, double endLng) {
+
+        try {
+            double currentFuelLevel = INITIAL_FUEL_LEVEL;
+            double currentLat = startLat;
+            double currentLng = startLng;
+            int totalPointCount = 0;
+
+            // Infinite navigation loop
+            while (true) {
+                // Generate random destination within Lima bounds
+                double destLat = -12.13 + ThreadLocalRandom.current().nextDouble(0.09);
+                double destLng = -77.08 + ThreadLocalRandom.current().nextDouble(0.13);
+
+
+                List<double[]> routeCoordinates;
+
+                // Try to fetch route from OpenRouteService API
+                if (routeClient.isConfigured()) {
+                    routeCoordinates = routeClient.getRouteCoordinates(currentLat, currentLng, destLat, destLng);
+                } else {
+                    routeCoordinates = List.of();
+                }
+
+                // Use fallback if API fails
+                if (routeCoordinates.isEmpty()) {
+                    routeCoordinates = generateHighDensityFallbackRoute(currentLat, currentLng, destLat, destLng);
+                } else {
+                }
+
+                // Apply interpolation for smooth movement
+                List<double[]> interpolatedRoute = interpolateRoute(routeCoordinates, 10);
+
+                // Navigate through current route
+                for (double[] coordinate : interpolatedRoute) {
+                    double latitude = coordinate[0];
+                    double longitude = coordinate[1];
+
+                    // Random speed between 30 and 60 km/h
+                    double speed = 30.0 + ThreadLocalRandom.current().nextDouble(30.0);
+
+                    // Consume fuel
+                    currentFuelLevel -= FUEL_CONSUMPTION_RATE;
+                    currentFuelLevel = Math.max(0, currentFuelLevel);
+
+                    // Check if refueling is needed
+                    if (currentFuelLevel <= 0) {
+
+                        // Save stopped telemetry with speed=0 and fuel=0 (already integers)
+                        RecordTelemetryCommand stopCommand = new RecordTelemetryCommand(
+                        telemetryRepository.save(new Telemetry(stopCommand));
+
+                        // Simulate refueling time (5 seconds)
+                        try {
+                            Thread.sleep(5000);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+
+                        // Refuel to 100%
+                        currentFuelLevel = INITIAL_FUEL_LEVEL;
+                    }
+
+                    // Round speed and fuel to integers for clean database storage
+                    double roundedSpeed = Math.round(speed);
+                    double roundedFuel = Math.round(currentFuelLevel);
+
+                    // Save telemetry with integer values
+                    RecordTelemetryCommand command = new RecordTelemetryCommand(
+                    Telemetry telemetry = new Telemetry(command);
+                    telemetryRepository.save(telemetry);
+
+                    totalPointCount++;
+
+
+                    // Simulate real-time driving with random delay (1000-2000ms for natural timing)
+                    try {
+                        long randomDelay = ThreadLocalRandom.current().nextLong(1000, 2001);
+                        Thread.sleep(randomDelay);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+
+                // Update current position to destination
+                currentLat = destLat;
+                currentLng = destLng;
+
+            }
+
+        } catch (Exception e) {
+        }
+    }
+
+    /**
+     * Helper to load route from external API or use local fallback immediately.
+     * Never blocks callers: if external API fails or returns empty, returns fallback.
+     *
+     * Fallback Strategy (High Density Path):
+     * - Calculates distance between start and end coordinates
+     * - Generates 1 intermediate point per 10 meters (minimum 100 points)
+     * - Ensures simulation lasts several minutes instead of teleporting
+     */
+    private List<double[]> loadRouteOrFallback(double startLat, double startLng, double endLat, double endLng) {
+        try {
+            List<double[]> routeCoordinates = List.of();
+            if (!routeClient.isConfigured()) {
+                return generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
+            }
+
+            routeCoordinates = routeClient.getRouteCoordinates(startLat, startLng, endLat, endLng);
+
+            if (routeCoordinates == null || routeCoordinates.isEmpty()) {
+                return generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
+            }
+
+            return routeCoordinates;
+
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            // Capture HTTP errors specifically (401, 403, 404, etc.)
+
+            if (e.getStatusCode().value() == 401) {
+            } else if (e.getStatusCode().value() == 403) {
+            } else if (e.getStatusCode().value() == 404) {
+            }
+
+            return generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
+
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            return generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
+
+        } catch (Exception e) {
+            return generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
+        }
+    }
+
+    /**
+     * Generates a high-density fallback route with linear interpolation.
+     * Calculates the distance between start and end, then generates intermediate points
+     * to ensure smooth and long-duration simulation (minimum 100 points).
+     *
+     * This prevents the simulation from finishing instantly when the external API fails.
+     *
+     * @param startLat Starting latitude
+     * @param startLng Starting longitude
+     * @param endLat Ending latitude
+     * @param endLng Ending longitude
+     * @return List of densely interpolated coordinate points
+     */
+    private List<double[]> generateHighDensityFallbackRoute(double startLat, double startLng, double endLat, double endLng) {
+
+        // Calculate approximate distance using Haversine formula (in meters)
+        double distance = calculateDistance(startLat, startLng, endLat, endLng);
+
+        // Generate 1 point per 10 meters, with a minimum of 100 points
+        int numberOfPoints = Math.max(100, (int) (distance / 10.0));
+
+
+        List<double[]> fallbackRoute = new ArrayList<>(numberOfPoints + 1);
+
+        // Add start point
+        fallbackRoute.add(new double[]{startLat, startLng});
+
+        // Generate intermediate points using linear interpolation
+        for (int i = 1; i < numberOfPoints; i++) {
+            double ratio = (double) i / numberOfPoints;
+            double interpolatedLat = startLat + (endLat - startLat) * ratio;
+            double interpolatedLng = startLng + (endLng - startLng) * ratio;
+            fallbackRoute.add(new double[]{interpolatedLat, interpolatedLng});
+        }
+
+        // Add end point
+        fallbackRoute.add(new double[]{endLat, endLng});
+
+        return fallbackRoute;
+    }
+
+    /**
+     * Calculates the distance between two coordinates using the Haversine formula.
+     * Returns the distance in meters.
+     *
+     * @param lat1 Latitude of first point
+     * @param lng1 Longitude of first point
+     * @param lat2 Latitude of second point
+     * @param lng2 Longitude of second point
+     * @return Distance in meters
+     */
+    private double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+        final double EARTH_RADIUS_METERS = 6371000.0; // Earth's radius in meters
+
+        // Convert degrees to radians
+        double lat1Rad = Math.toRadians(lat1);
+        double lat2Rad = Math.toRadians(lat2);
+        double deltaLatRad = Math.toRadians(lat2 - lat1);
+        double deltaLngRad = Math.toRadians(lng2 - lng1);
+
+        // Haversine formula
+        double a = Math.sin(deltaLatRad / 2) * Math.sin(deltaLatRad / 2) +
+                   Math.cos(lat1Rad) * Math.cos(lat2Rad) *
+                   Math.sin(deltaLngRad / 2) * Math.sin(deltaLngRad / 2);
+
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return EARTH_RADIUS_METERS * c;
+    }
+
+    /**
+     * Interpolates a route by generating intermediate points between each pair of coordinates.
+     * This prevents "teleporting" by creating smoother transitions between waypoints.
+     *
+     * @param originalPoints The original route coordinates from the API or fallback
+     * @param stepsPerSegment Number of intermediate points to generate between each pair (default: 10)
+     * @return A densified list with interpolated points for smooth simulation
+     */
+    private List<double[]> interpolateRoute(List<double[]> originalPoints, int stepsPerSegment) {
+        if (originalPoints == null || originalPoints.size() < 2) {
+            return originalPoints != null ? originalPoints : List.of();
+        }
+
+        List<double[]> interpolatedRoute = new ArrayList<>();
+
+        for (int i = 0; i < originalPoints.size() - 1; i++) {
+            double[] start = originalPoints.get(i);
+            double[] end = originalPoints.get(i + 1);
+
+            // Add the starting point
+            interpolatedRoute.add(start);
+
+            // Generate intermediate points using linear interpolation
+            for (int step = 1; step < stepsPerSegment; step++) {
+                double ratio = (double) step / stepsPerSegment;
+                double interpolatedLat = start[0] + (end[0] - start[0]) * ratio;
+                double interpolatedLng = start[1] + (end[1] - start[1]) * ratio;
+                interpolatedRoute.add(new double[]{interpolatedLat, interpolatedLng});
+            }
+        }
+
+        // Add the final destination point
+        interpolatedRoute.add(originalPoints.getLast());
+
+
+        return interpolatedRoute;
+    }
+}

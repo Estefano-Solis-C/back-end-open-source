@@ -4,8 +4,6 @@ import com.codexateam.platform.iam.application.internal.outboundservices.tokens.
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -19,8 +17,7 @@ import java.util.function.Function;
  */
 @Service
 public class TokenServiceImpl implements TokenService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(TokenServiceImpl.class);
-    
+
     @Value("${authorization.jwt.secret}")
     private String secret;
 
@@ -57,7 +54,6 @@ public class TokenServiceImpl implements TokenService {
             Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(token);
             return true;
         } catch (Exception e) {
-            LOGGER.error("Invalid JWT token: {}", e.getMessage());
             return false;
         }
     }

@@ -2,8 +2,6 @@ package com.codexateam.platform.iam.application.internal.eventhandlers;
 
 import com.codexateam.platform.iam.domain.model.commands.SeedRolesCommand;
 import com.codexateam.platform.iam.domain.services.RoleCommandService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -14,21 +12,14 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class ApplicationReadyEventHandler {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ApplicationReadyEventHandler.class);
     private final RoleCommandService roleCommandService;
 
     public ApplicationReadyEventHandler(RoleCommandService roleCommandService) {
         this.roleCommandService = roleCommandService;
     }
 
-    /**
-     * Handles the ApplicationReadyEvent to seed roles.
-     * @param event The ApplicationReadyEvent.
-     */
     @EventListener
     public void on(ApplicationReadyEvent event) {
-        LOGGER.info("Starting to seed roles...");
         roleCommandService.handle(new SeedRolesCommand());
-        LOGGER.info("Roles seeded successfully.");
     }
 }

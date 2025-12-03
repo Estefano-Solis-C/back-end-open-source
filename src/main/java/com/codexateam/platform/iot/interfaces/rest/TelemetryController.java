@@ -3,7 +3,6 @@ package com.codexateam.platform.iot.interfaces.rest;
 import com.codexateam.platform.iam.infrastructure.authorization.sfs.model.UserDetailsImpl;
 import com.codexateam.platform.iot.application.internal.outboundservices.acl.ExternalBookingService;
 import com.codexateam.platform.iot.application.internal.outboundservices.acl.ExternalListingsService;
-import com.codexateam.platform.iot.application.internal.services.TelemetrySimulatorService;
 import com.codexateam.platform.iot.application.internal.outboundservices.AutomaticTelemetryGeneratorService;
 import com.codexateam.platform.iot.domain.model.queries.GetTelemetryByVehicleIdQuery;
 import com.codexateam.platform.iot.domain.model.queries.GetLatestTelemetryQuery;
@@ -52,7 +51,6 @@ public class TelemetryController {
     private final TelemetryQueryService telemetryQueryService;
     private final ExternalListingsService externalListingsService;
     private final ExternalBookingService externalBookingService;
-    private final TelemetrySimulatorService telemetrySimulatorService;
     private final AutomaticTelemetryGeneratorService automaticTelemetryGeneratorService;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
@@ -65,7 +63,6 @@ public class TelemetryController {
             TelemetryQueryService telemetryQueryService,
             ExternalListingsService externalListingsService,
             ExternalBookingService externalBookingService,
-            TelemetrySimulatorService telemetrySimulatorService,
             AutomaticTelemetryGeneratorService automaticTelemetryGeneratorService,
             BookingRepository bookingRepository,
             UserRepository userRepository) {
@@ -73,7 +70,6 @@ public class TelemetryController {
         this.telemetryQueryService = telemetryQueryService;
         this.externalListingsService = externalListingsService;
         this.externalBookingService = externalBookingService;
-        this.telemetrySimulatorService = telemetrySimulatorService;
         this.automaticTelemetryGeneratorService = automaticTelemetryGeneratorService;
         this.bookingRepository = bookingRepository;
         this.userRepository = userRepository;
@@ -215,7 +211,6 @@ public class TelemetryController {
             throw new SecurityException(ERROR_NOT_AUTHORIZED_SIMULATE);
         }
 
-        telemetrySimulatorService.startSimulation(vehicleId);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(
             Map.of(
                 "message", "Telemetry simulation started for vehicle " + vehicleId,
@@ -257,8 +252,6 @@ public class TelemetryController {
         if (!externalListingsService.isVehicleOwner(vehicleId, ownerId)) {
             throw new SecurityException("Not authorized to simulate telemetry for this vehicle");
         }
-
-        telemetrySimulatorService.startSimulation(vehicleId, startLat, startLng, endLat, endLng);
 
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(
             Map.of(

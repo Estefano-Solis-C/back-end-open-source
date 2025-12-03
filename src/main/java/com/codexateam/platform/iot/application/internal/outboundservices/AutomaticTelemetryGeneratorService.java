@@ -6,8 +6,6 @@ import com.codexateam.platform.iot.domain.model.aggregates.Telemetry;
 import com.codexateam.platform.iot.domain.model.commands.RecordTelemetryCommand;
 import com.codexateam.platform.iot.infrastructure.external.OpenRouteServiceApiClient;
 import com.codexateam.platform.iot.infrastructure.persistence.jpa.repositories.TelemetryRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.stereotype.Service;
 
@@ -26,7 +24,6 @@ import java.util.concurrent.ThreadLocalRandom;
 @EnableScheduling
 public class AutomaticTelemetryGeneratorService {
 
-    private static final Logger logger = LoggerFactory.getLogger(AutomaticTelemetryGeneratorService.class);
     private static final String BOOKING_STATUS_CONFIRMED = "CONFIRMED";
 
     // Lima bounds
@@ -133,12 +130,6 @@ public class AutomaticTelemetryGeneratorService {
     }
 
     private List<double[]> generateHighDensityFallbackPath(double[] start, double[] end) {
-        logger.warn("════════════════════════════════════════════════════════════════");
-        logger.warn("⚠️  ATENCIÓN: Generando ruta simulada (LÍNEA RECTA)");
-        logger.warn("⚠️  Motivo: La API de OpenRouteService falló o no está configurada");
-        logger.warn("⚠️  El vehículo NO seguirá las calles reales");
-        logger.warn("════════════════════════════════════════════════════════════════");
-
         double startLat = start[0];
         double startLng = start[1];
         double endLat = end[0];
@@ -146,8 +137,6 @@ public class AutomaticTelemetryGeneratorService {
         double distance = calculateDistance(startLat, startLng, endLat, endLng);
         int numberOfPoints = Math.max(100, (int) (distance / 10.0));
 
-        logger.info("Generating FALLBACK route: distance={} meters, {} points (STRAIGHT LINE)",
-                String.format("%.2f", distance), numberOfPoints);
 
         List<double[]> fallbackPath = new ArrayList<>(numberOfPoints + 1);
         fallbackPath.add(boundToLima(start));

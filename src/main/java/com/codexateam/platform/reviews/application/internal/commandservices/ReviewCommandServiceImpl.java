@@ -7,8 +7,6 @@ import com.codexateam.platform.reviews.domain.exceptions.CompletedBookingRequire
 import com.codexateam.platform.reviews.domain.exceptions.ReviewAlreadyExistsException;
 import com.codexateam.platform.reviews.infrastructure.persistence.jpa.repositories.ReviewRepository;
 import com.codexateam.platform.booking.interfaces.acl.BookingContextFacade;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -20,8 +18,6 @@ import java.util.Optional;
 @Service
 public class ReviewCommandServiceImpl implements ReviewCommandService {
 
-    private static final Logger logger = LoggerFactory.getLogger(ReviewCommandServiceImpl.class);
-    private static final String ERROR_SAVING_REVIEW = "Error saving review";
 
     private final ReviewRepository reviewRepository;
     private final BookingContextFacade bookingContextFacade;
@@ -54,7 +50,6 @@ public class ReviewCommandServiceImpl implements ReviewCommandService {
             reviewRepository.save(review);
             return Optional.of(review);
         } catch (Exception e) {
-            logger.error("{} for vehicle {} by renter {}: {}", ERROR_SAVING_REVIEW, command.vehicleId(), command.renterId(), e.getMessage(), e);
             return Optional.empty();
         }
     }

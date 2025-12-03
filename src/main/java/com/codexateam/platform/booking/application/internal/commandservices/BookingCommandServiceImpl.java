@@ -17,8 +17,6 @@ import com.codexateam.platform.booking.domain.exceptions.InvalidBookingDatesExce
 import com.codexateam.platform.booking.domain.exceptions.UnauthorizedBookingAccessException;
 import com.codexateam.platform.booking.domain.exceptions.OwnerMismatchException;
 import com.codexateam.platform.booking.domain.model.valueobjects.BookingStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -30,7 +28,6 @@ import java.util.Optional;
 @Service
 public class BookingCommandServiceImpl implements BookingCommandService {
 
-    private static final Logger logger = LoggerFactory.getLogger(BookingCommandServiceImpl.class);
 
     private static final String VEHICLE_STATUS_AVAILABLE = "available";
     private static final String VEHICLE_STATUS_RENTED = "rented";
@@ -66,7 +63,6 @@ public class BookingCommandServiceImpl implements BookingCommandService {
             bookingRepository.save(booking);
             return Optional.of(booking);
         } catch (Exception e) {
-            logger.error("Error saving booking for vehicle {}: {}", command.vehicleId(), e.getMessage(), e);
             return Optional.empty();
         }
     }
@@ -140,7 +136,6 @@ public class BookingCommandServiceImpl implements BookingCommandService {
             externalListingsService.updateVehicleStatus(bookingToConfirm.getVehicleId(), VEHICLE_STATUS_RENTED);
             return Optional.of(bookingToConfirm);
         } catch (Exception e) {
-            logger.error("Error confirming booking {}: {}", command.bookingId(), e.getMessage(), e);
             return Optional.empty();
         }
     }
@@ -165,7 +160,6 @@ public class BookingCommandServiceImpl implements BookingCommandService {
             externalListingsService.updateVehicleStatus(bookingToReject.getVehicleId(), VEHICLE_STATUS_AVAILABLE);
             return Optional.of(bookingToReject);
         } catch (Exception e) {
-            logger.error("Error rejecting booking {}: {}", command.bookingId(), e.getMessage(), e);
             return Optional.empty();
         }
     }
@@ -194,7 +188,6 @@ public class BookingCommandServiceImpl implements BookingCommandService {
             externalListingsService.updateVehicleStatus(bookingToCancel.getVehicleId(), VEHICLE_STATUS_AVAILABLE);
             return Optional.of(bookingToCancel);
         } catch (Exception e) {
-            logger.error("Error canceling booking {}: {}", command.bookingId(), e.getMessage(), e);
             return Optional.empty();
         }
     }

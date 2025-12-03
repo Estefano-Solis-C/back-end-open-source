@@ -13,8 +13,6 @@ import com.codexateam.platform.listings.infrastructure.persistence.jpa.repositor
 import com.codexateam.platform.booking.infrastructure.persistence.jpa.repositories.BookingRepository;
 import com.codexateam.platform.reviews.infrastructure.persistence.jpa.repositories.ReviewRepository;
 import com.codexateam.platform.iot.infrastructure.persistence.jpa.repositories.TelemetryRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,8 +25,6 @@ import java.util.Optional;
 @Service
 public class VehicleCommandServiceImpl implements VehicleCommandService {
 
-    private static final Logger logger = LoggerFactory.getLogger(VehicleCommandServiceImpl.class);
-    private static final String ERROR_SAVING_VEHICLE = "Error saving vehicle";
 
     private final VehicleRepository vehicleRepository;
     private final ExternalIamService externalIamService;
@@ -67,7 +63,6 @@ public class VehicleCommandServiceImpl implements VehicleCommandService {
             vehicleRepository.save(vehicle);
             return Optional.of(vehicle);
         } catch (Exception e) {
-            logger.error("{} for owner {}: {}", ERROR_SAVING_VEHICLE, command.ownerId(), e.getMessage(), e);
             return Optional.empty();
         }
     }
