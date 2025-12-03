@@ -7,6 +7,10 @@ import com.codexateam.platform.listings.interfaces.rest.resources.VehicleResourc
  * Assembler to convert Vehicle aggregate to VehicleResource DTO.
  */
 public class VehicleResourceFromEntityAssembler {
+
+    private static final String BASE_URL = "http://localhost:8080";
+    private static final String IMAGE_ENDPOINT = "/api/v1/vehicles/%d/image";
+
     /**
      * Converts a Vehicle domain entity to a VehicleResource DTO.
      *
@@ -14,6 +18,7 @@ public class VehicleResourceFromEntityAssembler {
      * @return The VehicleResource DTO.
      */
     public static VehicleResource toResourceFromEntity(Vehicle entity) {
+        String imageUrl = String.format(BASE_URL + IMAGE_ENDPOINT, entity.getId());
         return new VehicleResource(
                 entity.getId(),
                 entity.getBrand(),
@@ -21,7 +26,7 @@ public class VehicleResourceFromEntityAssembler {
                 entity.getYear(),
                 entity.getPricePerDay(),
                 entity.getStatus(),
-                entity.getImageUrl(),
+                imageUrl,
                 entity.getOwnerId(),
                 entity.getCreatedAt()
         );

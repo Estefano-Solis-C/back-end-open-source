@@ -17,12 +17,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 import com.codexateam.platform.listings.domain.model.commands.DeleteVehicleCommand;
@@ -63,10 +67,11 @@ public class VehiclesController {
 
     /**
      * Creates a new vehicle listing (owner only).
-     * @param resource payload containing vehicle attributes
+     * @param resource payload containing vehicle attributes as JSON
+     * @param image the vehicle image file
      * @return created vehicle resource with HTTP 201
      */
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ROLE_ARRENDADOR')")
     @Operation(summary = "Create Vehicle Listing", description = "Create a new vehicle listing as an owner (ROLE_ARRENDADOR)")
     @ApiResponses(value = {
@@ -74,13 +79,20 @@ public class VehiclesController {
             @ApiResponse(responseCode = "400", description = "Invalid input"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
-    public ResponseEntity<VehicleResource> createVehicle(@RequestBody CreateVehicleResource resource) {
-        Long ownerId = getAuthenticatedUserId();
-        var command = CreateVehicleCommandFromResourceAssembler.toCommandFromResource(resource, ownerId);
-        var vehicle = vehicleCommandService.handle(command)
-                .orElseThrow(() -> new RuntimeException(ERROR_CREATING_VEHICLE));
-        var vehicleResource = VehicleResourceFromEntityAssembler.toResourceFromEntity(vehicle);
-        return ResponseEntity.status(HttpStatus.CREATED).body(vehicleResource);
+    public ResponseEntity<VehicleResource> createVehicle(
+            @RequestPart("resource") CreateVehicleResource resource,
+            @RequestPart("image") MultipartFile image) {
+        try {
+            Long ownerId = getAuthenticatedUserId();
+            byte[] imageBytes = image.getBytes();
+            var command = CreateVehicleCommandFromResourceAssembler.toCommandFromResource(resource, imageBytes, ownerId);
+            var vehicle = vehicleCommandService.handle(command)
+                    .orElseThrow(() -> new RuntimeException(ERROR_CREATING_VEHICLE));
+            var vehicleResource = VehicleResourceFromEntityAssembler.toResourceFromEntity(vehicle);
+            return ResponseEntity.status(HttpStatus.CREATED).body(vehicleResource);
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading image file: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -119,7 +131,33 @@ public class VehiclesController {
         var resource = VehicleResourceFromEntityAssembler.toResourceFromEntity(vehicle);
         return ResponseEntity.ok(resource);
     }
-    
+
+    /**
+     * Retrieves the image of a vehicle by ID (public).
+     * @param vehicleId identifier of the vehicle
+     * @return the image as byte array
+     */
+    @GetMapping("/{vehicleId}/image")
+    @Operation(summary = "Get Vehicle Image", description = "Get the image of a specific vehicle (Public)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Image found"),
+            @ApiResponse(responseCode = "404", description = "Vehicle or image not found")
+    })
+    public ResponseEntity<byte[]> getVehicleImage(@PathVariable Long vehicleId) {
+        var query = new GetVehicleByIdQuery(vehicleId);
+        var vehicle = vehicleQueryService.handle(query)
+                .orElseThrow(() -> new VehicleNotFoundException(vehicleId));
+
+        if (vehicle.getImage() == null || vehicle.getImage().length == 0) {
+            return ResponseEntity.notFound().build();
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.IMAGE_JPEG);
+
+        return new ResponseEntity<>(vehicle.getImage(), headers, HttpStatus.OK);
+    }
+
     /**
      * Retrieves all vehicles owned by the authenticated owner.
      * @return list of owner's vehicle resources
@@ -144,31 +182,40 @@ public class VehiclesController {
     /**
      * Updates an existing vehicle listing (owner only).
      * @param vehicleId vehicle identifier
-     * @param resource updated data
+     * @param resource updated data as JSON
+     * @param image the updated vehicle image file
      * @return updated vehicle resource
      */
-    @PutMapping("/{vehicleId}")
+    @PutMapping(value = "/{vehicleId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ROLE_ARRENDADOR')")
     @Operation(summary = "Update Vehicle", description = "Update an existing vehicle listing (Owner only)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Vehicle updated successfully"),
             @ApiResponse(responseCode = "404", description = "Vehicle not found")
     })
-    public ResponseEntity<VehicleResource> updateVehicle(@PathVariable Long vehicleId, @RequestBody CreateVehicleResource resource) {
-        var command = new UpdateVehicleCommand(
-                vehicleId,
-                resource.brand(),
-                resource.model(),
-                resource.year(),
-                resource.pricePerDay(),
-                resource.imageUrl()
-        );
-        var updatedVehicle = vehicleCommandService.handle(command);
-        if (updatedVehicle.isEmpty()) {
-            return ResponseEntity.notFound().build();
+    public ResponseEntity<VehicleResource> updateVehicle(
+            @PathVariable Long vehicleId,
+            @RequestPart("resource") CreateVehicleResource resource,
+            @RequestPart("image") MultipartFile image) {
+        try {
+            byte[] imageBytes = image.getBytes();
+            var command = new UpdateVehicleCommand(
+                    vehicleId,
+                    resource.brand(),
+                    resource.model(),
+                    resource.year(),
+                    resource.pricePerDay(),
+                    imageBytes
+            );
+            var updatedVehicle = vehicleCommandService.handle(command);
+            if (updatedVehicle.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            var vehicleResource = VehicleResourceFromEntityAssembler.toResourceFromEntity(updatedVehicle.get());
+            return ResponseEntity.ok(vehicleResource);
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading image file: " + e.getMessage(), e);
         }
-        var vehicleResource = VehicleResourceFromEntityAssembler.toResourceFromEntity(updatedVehicle.get());
-        return ResponseEntity.ok(vehicleResource);
     }
 
     /**

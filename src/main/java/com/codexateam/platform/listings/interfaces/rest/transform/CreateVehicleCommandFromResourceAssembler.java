@@ -12,16 +12,17 @@ public class CreateVehicleCommandFromResourceAssembler {
      * The owner ID is injected from the security context (authenticated user).
      *
      * @param resource The input DTO with vehicle data.
+     * @param image The image data as byte array.
      * @param ownerId The ID of the authenticated owner.
      * @return The CreateVehicleCommand.
      */
-    public static CreateVehicleCommand toCommandFromResource(CreateVehicleResource resource, Long ownerId) {
+    public static CreateVehicleCommand toCommandFromResource(CreateVehicleResource resource, byte[] image, Long ownerId) {
         return new CreateVehicleCommand(
                 resource.brand(),
                 resource.model(),
                 resource.year(),
                 resource.pricePerDay(),
-                resource.imageUrl(),
+                image,
                 ownerId
         );
     }

@@ -7,6 +7,7 @@ import com.codexateam.platform.shared.domain.model.aggregates.AuditableAbstractA
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -41,8 +42,12 @@ public class Vehicle extends AuditableAbstractAggregateRoot<Vehicle> {
     @Embedded
     private VehicleStatus status;
 
-    @Column(length = 1000)
-    private String imageUrl;
+    /**
+     * The image data of the vehicle stored as binary data.
+     */
+    @Lob
+    @Column(columnDefinition = "LONGBLOB")
+    private byte[] image;
 
     /**
      * Foreign key to the User (Arrendador) who owns this vehicle.
@@ -56,7 +61,7 @@ public class Vehicle extends AuditableAbstractAggregateRoot<Vehicle> {
         this.year = command.year();
         this.pricePerDay = command.pricePerDay();
         this.status = new VehicleStatus(DEFAULT_STATUS_AVAILABLE); // Default status on creation
-        this.imageUrl = command.imageUrl();
+        this.image = command.image();
         this.ownerId = command.ownerId();
     }
     
@@ -77,7 +82,7 @@ public class Vehicle extends AuditableAbstractAggregateRoot<Vehicle> {
         this.model = command.model();
         this.year = command.year();
         this.pricePerDay = command.pricePerDay();
-        this.imageUrl = command.imageUrl();
+        this.image = command.image();
     }
 
     // Accessor for status value

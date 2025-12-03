@@ -9,7 +9,7 @@ package com.codexateam.platform.listings.domain.model.commands;
  * @param model The updated model of the vehicle.
  * @param year The updated year of the vehicle.
  * @param pricePerDay The updated price per day for renting the vehicle.
- * @param imageUrl The updated image URL of the vehicle.
+ * @param image The updated image data as byte array.
  */
 public record UpdateVehicleCommand(
         Long vehicleId,
@@ -17,7 +17,7 @@ public record UpdateVehicleCommand(
         String model,
         Integer year,
         Double pricePerDay,
-        String imageUrl
+        byte[] image
 ) {
 }
 

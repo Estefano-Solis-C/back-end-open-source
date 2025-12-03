@@ -7,7 +7,7 @@ package com.codexateam.platform.listings.domain.model.commands;
  * @param model The vehicle's model name.
  * @param year The vehicle's manufacturing year.
  * @param pricePerDay The daily rental price.
- * @param imageUrl URL of the vehicle's image.
+ * @param image The image data as byte array.
  * @param ownerId The ID of the owner (must have ROLE_ARRENDADOR).
  */
 public record CreateVehicleCommand(
@@ -15,7 +15,7 @@ public record CreateVehicleCommand(
         String model,
         Integer year,
         Double pricePerDay,
-        String imageUrl,
+        byte[] image,
         Long ownerId
 ) {
 }

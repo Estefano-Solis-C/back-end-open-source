@@ -74,6 +74,7 @@ public class ListingsContextFacade {
 
     // Helper to map aggregate to resource without exposing controller layer.
     private VehicleResource toResource(Vehicle v) {
+        String imageUrl = String.format("http://localhost:8080/api/v1/vehicles/%d/image", v.getId());
         return new VehicleResource(
                 v.getId(),
                 v.getBrand(),
@@ -81,7 +82,7 @@ public class ListingsContextFacade {
                 v.getYear(),
                 v.getPricePerDay(),
                 v.getStatus(),
-                v.getImageUrl(),
+                imageUrl,
                 v.getOwnerId(),
                 v.getCreatedAt()
         );

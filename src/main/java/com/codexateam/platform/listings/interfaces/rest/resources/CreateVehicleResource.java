@@ -8,13 +8,11 @@ package com.codexateam.platform.listings.interfaces.rest.resources;
  * @param model The vehicle's model name.
  * @param year The vehicle's manufacturing year.
  * @param pricePerDay The daily rental price.
- * @param imageUrl URL of the vehicle's image.
  */
 public record CreateVehicleResource(
         String brand,
         String model,
         Integer year,
-        Double pricePerDay,
-        String imageUrl
+        Double pricePerDay
 ) {
 }
