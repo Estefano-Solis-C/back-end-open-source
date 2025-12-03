@@ -320,17 +320,50 @@ public class TelemetrySimulatorService {
     private List<double[]> loadRouteOrFallback(double startLat, double startLng, double endLat, double endLng) {
         try {
             List<double[]> routeCoordinates = List.of();
-            if (routeClient.isConfigured()) {
-                routeCoordinates = routeClient.getRouteCoordinates(startLat, startLng, endLat, endLng);
-            }
-            if (routeCoordinates == null || routeCoordinates.isEmpty()) {
-                // Generate high-density fallback route using linear interpolation
-                logger.warn("External API failed or returned empty. Generating high-density fallback route.");
+            if (!routeClient.isConfigured()) {
+                logger.error("⚠️ OpenRouteService API Key NOT configured. Please set 'openrouteservice.api.key' in application.properties");
+                logger.warn("⚠️ ATENCIÓN: Usando ruta simulada (LÍNEA RECTA) porque la API externa no está configurada");
                 return generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
             }
+
+            routeCoordinates = routeClient.getRouteCoordinates(startLat, startLng, endLat, endLng);
+
+            if (routeCoordinates == null || routeCoordinates.isEmpty()) {
+                logger.error("⚠️ OpenRouteService API returned EMPTY response");
+                logger.warn("⚠️ ATENCIÓN: Usando ruta simulada (LÍNEA RECTA) porque la API externa falló");
+                return generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
+            }
+
+            logger.info("✓ Route successfully loaded from OpenRouteService API with {} points", routeCoordinates.size());
             return routeCoordinates;
+
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            // Capture HTTP errors specifically (401, 403, 404, etc.)
+            logger.error("⚠️ HTTP ERROR calling OpenRouteService API:");
+            logger.error("   Status Code: {} ({})", e.getStatusCode().value(), e.getStatusCode());
+            logger.error("   Response Body: {}", e.getResponseBodyAsString());
+
+            if (e.getStatusCode().value() == 401) {
+                logger.error("   → ERROR 401 UNAUTHORIZED: Your API Key is INVALID or MISSING");
+                logger.error("   → Check 'openrouteservice.api.key' in application.properties");
+            } else if (e.getStatusCode().value() == 403) {
+                logger.error("   → ERROR 403 FORBIDDEN: Your API Key doesn't have permission or quota exceeded");
+            } else if (e.getStatusCode().value() == 404) {
+                logger.error("   → ERROR 404 NOT FOUND: Route not found between coordinates");
+            }
+
+            logger.warn("⚠️ ATENCIÓN: Usando ruta simulada (LÍNEA RECTA) porque la API externa falló");
+            return generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
+
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            logger.error("⚠️ NETWORK ERROR calling OpenRouteService API: {}", e.getMessage());
+            logger.error("   → Cannot reach api.openrouteservice.org - check your internet connection");
+            logger.warn("⚠️ ATENCIÓN: Usando ruta simulada (LÍNEA RECTA) porque la API externa falló");
+            return generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
+
         } catch (Exception e) {
-            logger.warn("Error loading route from external API, using high-density fallback: {}", e.getMessage());
+            logger.error("⚠️ UNEXPECTED ERROR calling OpenRouteService API", e);
+            logger.warn("⚠️ ATENCIÓN: Usando ruta simulada (LÍNEA RECTA) porque la API externa falló");
             return generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
         }
     }
@@ -349,13 +382,19 @@ public class TelemetrySimulatorService {
      * @return List of densely interpolated coordinate points
      */
     private List<double[]> generateHighDensityFallbackRoute(double startLat, double startLng, double endLat, double endLng) {
+        logger.warn("════════════════════════════════════════════════════════════════");
+        logger.warn("⚠️  ATENCIÓN: Usando ruta simulada (LÍNEA RECTA)");
+        logger.warn("⚠️  Motivo: La API de OpenRouteService falló o no está configurada");
+        logger.warn("⚠️  El vehículo NO seguirá las calles reales");
+        logger.warn("════════════════════════════════════════════════════════════════");
+
         // Calculate approximate distance using Haversine formula (in meters)
         double distance = calculateDistance(startLat, startLng, endLat, endLng);
 
         // Generate 1 point per 10 meters, with a minimum of 100 points
         int numberOfPoints = Math.max(100, (int) (distance / 10.0));
 
-        logger.info("Generating fallback route: distance={} meters, generating {} intermediate points",
+        logger.info("Generating FALLBACK route: distance={} meters, generating {} intermediate points (STRAIGHT LINE)",
                     String.format("%.2f", distance), numberOfPoints);
 
         List<double[]> fallbackRoute = new ArrayList<>(numberOfPoints + 1);

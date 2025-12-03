@@ -123,6 +123,7 @@ public class AutomaticTelemetryGeneratorService {
                         List<double[]> plannedPath = openRouteServiceApiClient.getRouteCoordinates(
                                 startPoint[0], startPoint[1], endPoint[0], endPoint[1]);
                         if (plannedPath.isEmpty()) {
+                            logger.warn("⚠️ ATENCIÓN: Usando ruta simulada (LÍNEA RECTA) porque la API externa falló para vehículo {}", vehicleId);
                             plannedPath = generateHighDensityFallbackPath(startPoint, endPoint);
                         }
                         plannedPath = decimateRoute(plannedPath);
@@ -156,6 +157,7 @@ public class AutomaticTelemetryGeneratorService {
                     List<double[]> plannedPath = openRouteServiceApiClient.getRouteCoordinates(
                             startPoint[0], startPoint[1], endPoint[0], endPoint[1]);
                     if (plannedPath.isEmpty()) {
+                        logger.warn("⚠️ ATENCIÓN: Usando ruta simulada (LÍNEA RECTA) porque la API externa falló para vehículo {}", vehicleId);
                         plannedPath = generateHighDensityFallbackPath(startPoint, endPoint);
                     }
                     plannedPath = decimateRoute(plannedPath);
@@ -269,12 +271,22 @@ public class AutomaticTelemetryGeneratorService {
     }
 
     private List<double[]> generateHighDensityFallbackPath(double[] start, double[] end) {
+        logger.warn("════════════════════════════════════════════════════════════════");
+        logger.warn("⚠️  ATENCIÓN: Generando ruta simulada (LÍNEA RECTA)");
+        logger.warn("⚠️  Motivo: La API de OpenRouteService falló o no está configurada");
+        logger.warn("⚠️  El vehículo NO seguirá las calles reales");
+        logger.warn("════════════════════════════════════════════════════════════════");
+
         double startLat = start[0];
         double startLng = start[1];
         double endLat = end[0];
         double endLng = end[1];
         double distance = calculateDistance(startLat, startLng, endLat, endLng);
         int numberOfPoints = Math.max(100, (int) (distance / 10.0));
+
+        logger.info("Generating FALLBACK route: distance={} meters, {} points (STRAIGHT LINE)",
+                String.format("%.2f", distance), numberOfPoints);
+
         List<double[]> fallbackPath = new ArrayList<>(numberOfPoints + 1);
         fallbackPath.add(boundToLima(start));
         for (int i = 1; i < numberOfPoints; i++) {
