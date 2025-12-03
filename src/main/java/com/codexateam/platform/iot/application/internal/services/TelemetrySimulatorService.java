@@ -130,91 +130,115 @@ public class TelemetrySimulatorService {
      */
     @Async
     public void startSimulation(Long vehicleId) {
-        logger.info("Starting telemetry simulation for vehicle ID: {}", vehicleId);
+        logger.info("Starting INFINITE telemetry simulation for vehicle ID: {}", vehicleId);
 
         try {
-            List<double[]> routeCoordinates;
-
-            // Try to fetch route from OpenRouteService API
-            if (routeClient.isConfigured()) {
-                logger.info("Fetching route from OpenRouteService: ({}, {}) -> ({}, {})",
-                        START_LAT, START_LNG, END_LAT, END_LNG);
-
-                routeCoordinates = routeClient.getRouteCoordinates(
-                        START_LAT, START_LNG,
-                        END_LAT, END_LNG
-                );
-            } else {
-                routeCoordinates = List.of(); // Empty list to trigger fallback
-            }
-
-            // Check if API returned empty coordinates - use high-density fallback
-            if (routeCoordinates.isEmpty()) {
-                logger.warn("Using high-density fallback route due to API failure");
-                routeCoordinates = generateHighDensityFallbackRoute(START_LAT, START_LNG, END_LAT, END_LNG);
-            } else {
-                logger.info("Route retrieved successfully with {} points. Starting simulation...",
-                        routeCoordinates.size());
-            }
-
-            // Apply linear interpolation to create smooth movement (10 steps between each point)
-            List<double[]> interpolatedRoute = interpolateRoute(routeCoordinates, 10);
-
-            // Initialize simulation state
             double currentFuelLevel = INITIAL_FUEL_LEVEL;
-            int pointCount = 0;
+            double currentLat = START_LAT;
+            double currentLng = START_LNG;
+            int totalPointCount = 0;
 
-            // Iterate through each coordinate point on the interpolated route
-            for (double[] coordinate : interpolatedRoute) {
-                double latitude = coordinate[0];
-                double longitude = coordinate[1];
+            // Infinite navigation loop
+            while (true) {
+                // Generate random destination within Lima bounds
+                double destLat = -12.13 + ThreadLocalRandom.current().nextDouble(0.09); // -12.13 to -12.04
+                double destLng = -77.08 + ThreadLocalRandom.current().nextDouble(0.13); // -77.08 to -76.95
 
-                // Set speed to random value between 30 and 60 km/h for moving effect
-                double speed = 30.0 + ThreadLocalRandom.current().nextDouble(30.0);
+                logger.info("Vehicle {} - New route: ({}, {}) -> ({}, {})",
+                        vehicleId, currentLat, currentLng, destLat, destLng);
 
-                // Simulate fuel consumption
-                currentFuelLevel -= FUEL_CONSUMPTION_RATE;
-                currentFuelLevel = Math.max(0, currentFuelLevel); // Fuel can't go below 0
+                List<double[]> routeCoordinates;
 
-                // Create telemetry command
-                RecordTelemetryCommand command = new RecordTelemetryCommand(
-                        vehicleId,
-                        latitude,
-                        longitude,
-                        speed,
-                        currentFuelLevel
-                );
-
-                // Create and save telemetry
-                Telemetry telemetry = new Telemetry(command);
-                telemetryRepository.save(telemetry);
-
-                pointCount++;
-
-                logger.debug("Telemetry point {}/{} saved for vehicle {}: lat={}, lng={}, speed={}, fuel={}",
-                        pointCount, interpolatedRoute.size(), vehicleId, latitude, longitude,
-                        String.format("%.2f", speed), String.format("%.2f", currentFuelLevel));
-
-                // Add delay to simulate real-time driving (1 second for smoother updates)
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    logger.warn("Simulation interrupted for vehicle {}", vehicleId);
-                    Thread.currentThread().interrupt();
-                    break;
+                // Try to fetch route from OpenRouteService API
+                if (routeClient.isConfigured()) {
+                    routeCoordinates = routeClient.getRouteCoordinates(currentLat, currentLng, destLat, destLng);
+                } else {
+                    routeCoordinates = List.of();
                 }
 
-                // Stop simulation if fuel runs out
-                if (currentFuelLevel <= 0) {
-                    logger.info("Fuel depleted. Stopping simulation for vehicle {}", vehicleId);
-                    break;
+                // Use fallback if API fails
+                if (routeCoordinates.isEmpty()) {
+                    logger.warn("Using fallback route for vehicle {}", vehicleId);
+                    routeCoordinates = generateHighDensityFallbackRoute(currentLat, currentLng, destLat, destLng);
+                } else {
+                    logger.info("Route retrieved with {} points for vehicle {}", routeCoordinates.size(), vehicleId);
                 }
+
+                // Apply interpolation for smooth movement
+                List<double[]> interpolatedRoute = interpolateRoute(routeCoordinates, 10);
+
+                // Navigate through current route
+                for (double[] coordinate : interpolatedRoute) {
+                    double latitude = coordinate[0];
+                    double longitude = coordinate[1];
+
+                    // Random speed between 30 and 60 km/h
+                    double speed = 30.0 + ThreadLocalRandom.current().nextDouble(30.0);
+
+                    // Consume fuel
+                    currentFuelLevel -= FUEL_CONSUMPTION_RATE;
+                    currentFuelLevel = Math.max(0, currentFuelLevel);
+
+                    // Check if refueling is needed
+                    if (currentFuelLevel <= 0) {
+                        logger.info("Vehicle {} - Fuel depleted. Refueling...", vehicleId);
+
+                        // Save stopped telemetry with speed=0 and fuel=0 (already integers)
+                        RecordTelemetryCommand stopCommand = new RecordTelemetryCommand(
+                                vehicleId, latitude, longitude, 0.0, 0.0);
+                        telemetryRepository.save(new Telemetry(stopCommand));
+
+                        // Simulate refueling time (5 seconds)
+                        try {
+                            Thread.sleep(5000);
+                        } catch (InterruptedException e) {
+                            logger.warn("Refueling interrupted for vehicle {}", vehicleId);
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+
+                        // Refuel to 100%
+                        currentFuelLevel = INITIAL_FUEL_LEVEL;
+                        logger.info("Vehicle {} - Refueling complete. Continuing navigation...", vehicleId);
+                    }
+
+                    // Round speed and fuel to integers for clean database storage
+                    double roundedSpeed = Math.round(speed);
+                    double roundedFuel = Math.round(currentFuelLevel);
+
+                    // Save telemetry with integer values
+                    RecordTelemetryCommand command = new RecordTelemetryCommand(
+                            vehicleId, latitude, longitude, roundedSpeed, roundedFuel);
+                    Telemetry telemetry = new Telemetry(command);
+                    telemetryRepository.save(telemetry);
+
+                    totalPointCount++;
+
+                    logger.debug("Vehicle {} - Point {}: lat={}, lng={}, speed={}, fuel={}",
+                            vehicleId, totalPointCount, latitude, longitude,
+                            String.format("%.0f", roundedSpeed), String.format("%.0f", roundedFuel));
+
+                    // Simulate real-time driving with random delay (1000-2000ms for natural timing)
+                    try {
+                        long randomDelay = ThreadLocalRandom.current().nextLong(1000, 2001);
+                        Thread.sleep(randomDelay);
+                    } catch (InterruptedException e) {
+                        logger.warn("Simulation interrupted for vehicle {}", vehicleId);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+
+                // Update current position to last point of route (destination reached)
+                currentLat = destLat;
+                currentLng = destLng;
+
+                logger.info("Vehicle {} - Destination reached. Total points so far: {}. Generating new route...",
+                        vehicleId, totalPointCount);
             }
-
-            logger.info("Telemetry simulation completed for vehicle {}. Total points: {}", vehicleId, pointCount);
 
         } catch (Exception e) {
-            logger.error("Error during telemetry simulation for vehicle {}", vehicleId, e);
+            logger.error("Error during infinite telemetry simulation for vehicle {}", vehicleId, e);
         }
     }
 
@@ -230,81 +254,116 @@ public class TelemetrySimulatorService {
      */
     @Async
     public void startSimulation(Long vehicleId, double startLat, double startLng, double endLat, double endLng) {
-        logger.info("Starting custom telemetry simulation for vehicle ID: {} from ({}, {}) to ({}, {})",
+        logger.info("Starting INFINITE custom telemetry simulation for vehicle ID: {} from ({}, {}) to ({}, {})",
                 vehicleId, startLat, startLng, endLat, endLng);
 
         try {
-            List<double[]> routeCoordinates;
-
-            // Try to fetch route from OpenRouteService API
-            if (routeClient.isConfigured()) {
-                routeCoordinates = routeClient.getRouteCoordinates(
-                        startLat, startLng,
-                        endLat, endLng
-                );
-            } else {
-                routeCoordinates = List.of(); // Empty list to trigger fallback
-            }
-
-            // Check if API returned empty coordinates - use high-density fallback
-            if (routeCoordinates.isEmpty()) {
-                logger.warn("Using high-density fallback route due to API failure for custom coordinates");
-                routeCoordinates = generateHighDensityFallbackRoute(startLat, startLng, endLat, endLng);
-            } else {
-                logger.info("Custom route retrieved with {} points. Starting simulation...",
-                        routeCoordinates.size());
-            }
-
-            // Apply linear interpolation to create smooth movement (10 steps between each point)
-            List<double[]> interpolatedRoute = interpolateRoute(routeCoordinates, 10);
-
             double currentFuelLevel = INITIAL_FUEL_LEVEL;
-            int pointCount = 0;
+            double currentLat = startLat;
+            double currentLng = startLng;
+            int totalPointCount = 0;
 
-            for (double[] coordinate : interpolatedRoute) {
-                double latitude = coordinate[0];
-                double longitude = coordinate[1];
+            // Infinite navigation loop
+            while (true) {
+                // Generate random destination within Lima bounds
+                double destLat = -12.13 + ThreadLocalRandom.current().nextDouble(0.09);
+                double destLng = -77.08 + ThreadLocalRandom.current().nextDouble(0.13);
 
-                // Set speed to random value between 30 and 60 km/h for moving effect
-                double speed = 30.0 + ThreadLocalRandom.current().nextDouble(30.0);
+                logger.info("Vehicle {} - New route: ({}, {}) -> ({}, {})",
+                        vehicleId, currentLat, currentLng, destLat, destLng);
 
-                currentFuelLevel -= FUEL_CONSUMPTION_RATE;
-                currentFuelLevel = Math.max(0, currentFuelLevel);
+                List<double[]> routeCoordinates;
 
-                RecordTelemetryCommand command = new RecordTelemetryCommand(
-                        vehicleId,
-                        latitude,
-                        longitude,
-                        speed,
-                        currentFuelLevel
-                );
-
-                Telemetry telemetry = new Telemetry(command);
-                telemetryRepository.save(telemetry);
-
-                pointCount++;
-
-                logger.debug("Telemetry point {}/{} saved for vehicle {}", pointCount, interpolatedRoute.size(), vehicleId);
-
-                // Add delay to simulate real-time driving (1 second for smoother updates)
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    logger.warn("Simulation interrupted for vehicle {}", vehicleId);
-                    Thread.currentThread().interrupt();
-                    break;
+                // Try to fetch route from OpenRouteService API
+                if (routeClient.isConfigured()) {
+                    routeCoordinates = routeClient.getRouteCoordinates(currentLat, currentLng, destLat, destLng);
+                } else {
+                    routeCoordinates = List.of();
                 }
 
-                if (currentFuelLevel <= 0) {
-                    logger.info("Fuel depleted. Stopping simulation for vehicle {}", vehicleId);
-                    break;
+                // Use fallback if API fails
+                if (routeCoordinates.isEmpty()) {
+                    logger.warn("Using fallback route for vehicle {}", vehicleId);
+                    routeCoordinates = generateHighDensityFallbackRoute(currentLat, currentLng, destLat, destLng);
+                } else {
+                    logger.info("Route retrieved with {} points for vehicle {}", routeCoordinates.size(), vehicleId);
                 }
+
+                // Apply interpolation for smooth movement
+                List<double[]> interpolatedRoute = interpolateRoute(routeCoordinates, 10);
+
+                // Navigate through current route
+                for (double[] coordinate : interpolatedRoute) {
+                    double latitude = coordinate[0];
+                    double longitude = coordinate[1];
+
+                    // Random speed between 30 and 60 km/h
+                    double speed = 30.0 + ThreadLocalRandom.current().nextDouble(30.0);
+
+                    // Consume fuel
+                    currentFuelLevel -= FUEL_CONSUMPTION_RATE;
+                    currentFuelLevel = Math.max(0, currentFuelLevel);
+
+                    // Check if refueling is needed
+                    if (currentFuelLevel <= 0) {
+                        logger.info("Vehicle {} - Fuel depleted. Refueling...", vehicleId);
+
+                        // Save stopped telemetry with speed=0 and fuel=0 (already integers)
+                        RecordTelemetryCommand stopCommand = new RecordTelemetryCommand(
+                                vehicleId, latitude, longitude, 0.0, 0.0);
+                        telemetryRepository.save(new Telemetry(stopCommand));
+
+                        // Simulate refueling time (5 seconds)
+                        try {
+                            Thread.sleep(5000);
+                        } catch (InterruptedException e) {
+                            logger.warn("Refueling interrupted for vehicle {}", vehicleId);
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+
+                        // Refuel to 100%
+                        currentFuelLevel = INITIAL_FUEL_LEVEL;
+                        logger.info("Vehicle {} - Refueling complete. Continuing navigation...", vehicleId);
+                    }
+
+                    // Round speed and fuel to integers for clean database storage
+                    double roundedSpeed = Math.round(speed);
+                    double roundedFuel = Math.round(currentFuelLevel);
+
+                    // Save telemetry with integer values
+                    RecordTelemetryCommand command = new RecordTelemetryCommand(
+                            vehicleId, latitude, longitude, roundedSpeed, roundedFuel);
+                    Telemetry telemetry = new Telemetry(command);
+                    telemetryRepository.save(telemetry);
+
+                    totalPointCount++;
+
+                    logger.debug("Vehicle {} - Point {}: lat={}, lng={}, speed={}, fuel={}",
+                            vehicleId, totalPointCount, latitude, longitude,
+                            String.format("%.0f", roundedSpeed), String.format("%.0f", roundedFuel));
+
+                    // Simulate real-time driving with random delay (1000-2000ms for natural timing)
+                    try {
+                        long randomDelay = ThreadLocalRandom.current().nextLong(1000, 2001);
+                        Thread.sleep(randomDelay);
+                    } catch (InterruptedException e) {
+                        logger.warn("Simulation interrupted for vehicle {}", vehicleId);
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+
+                // Update current position to destination
+                currentLat = destLat;
+                currentLng = destLng;
+
+                logger.info("Vehicle {} - Destination reached. Total points so far: {}. Generating new route...",
+                        vehicleId, totalPointCount);
             }
-
-            logger.info("Custom telemetry simulation completed for vehicle {}. Total points: {}", vehicleId, pointCount);
 
         } catch (Exception e) {
-            logger.error("Error during custom telemetry simulation for vehicle {}", vehicleId, e);
+            logger.error("Error during infinite custom telemetry simulation for vehicle {}", vehicleId, e);
         }
     }
 
