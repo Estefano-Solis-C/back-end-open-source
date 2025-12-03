@@ -1,5 +1,6 @@
 package com.codexateam.platform.iot.infrastructure.external;
 
+import com.codexateam.platform.iot.infrastructure.external.dto.RouteResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -128,6 +129,126 @@ public class OpenRouteServiceApiClient {
         } catch (Exception e) {
             logger.error("Unexpected error calling OpenRouteService API", e);
             return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Retrieves complete route information from OpenRouteService API including
+     * all coordinates (following streets), distance, and duration.
+     *
+     * This method extracts the complete geometry from the GeoJSON response to ensure
+     * the route follows actual streets and roads, not just straight lines.
+     *
+     * @param startLat Starting point latitude
+     * @param startLng Starting point longitude
+     * @param endLat Ending point latitude
+     * @param endLng Ending point longitude
+     * @return RouteResponse containing coordinates, distance, and duration, or null if failed
+     */
+    public RouteResponse getCompleteRoute(double startLat, double startLng, double endLat, double endLng) {
+        if (apiKey == null || apiKey.isBlank()) {
+            logger.error("OpenRouteService API key is not configured. Please set 'openrouteservice.api.key' in application.properties");
+            return null;
+        }
+
+        // Construct URL: API expects longitude,latitude order
+        String url = String.format("%s?api_key=%s&start=%f,%f&end=%f,%f",
+                BASE_URL, apiKey, startLng, startLat, endLng, endLat);
+
+        logger.info("Requesting complete route from OpenRouteService: start({}, {}) -> end({}, {})",
+                startLat, startLng, endLat, endLng);
+
+        try {
+            // Get JSON response from API
+            String jsonResponse = restTemplate.getForObject(url, String.class);
+
+            if (jsonResponse == null || jsonResponse.isEmpty()) {
+                logger.error("OpenRouteService returned empty response");
+                return null;
+            }
+
+            // Parse JSON using ObjectMapper
+            JsonNode rootNode = objectMapper.readTree(jsonResponse);
+
+            // Navigate to features array
+            JsonNode featuresNode = rootNode.path("features");
+            if (featuresNode.isMissingNode() || !featuresNode.isArray() || featuresNode.isEmpty()) {
+                logger.warn("No features found in OpenRouteService response");
+                return null;
+            }
+
+            JsonNode featureNode = featuresNode.get(0);
+
+            // Extract geometry coordinates (the complete route following streets)
+            JsonNode geometryNode = featureNode.path("geometry");
+            if (geometryNode.isMissingNode()) {
+                logger.error("No geometry found in OpenRouteService response");
+                return null;
+            }
+
+            JsonNode coordinatesNode = geometryNode.path("coordinates");
+            if (coordinatesNode.isMissingNode() || !coordinatesNode.isArray()) {
+                logger.error("No coordinates array found in OpenRouteService response");
+                return null;
+            }
+
+            // Extract ALL coordinates from the geometry (this is the complete path following streets)
+            List<double[]> coordinates = new ArrayList<>();
+            for (JsonNode coordNode : coordinatesNode) {
+                if (coordNode.isArray() && coordNode.size() >= 2) {
+                    double longitude = coordNode.get(0).asDouble();
+                    double latitude = coordNode.get(1).asDouble();
+                    // Swap to [latitude, longitude] for consistency
+                    coordinates.add(new double[]{latitude, longitude});
+                }
+            }
+
+            if (coordinates.isEmpty()) {
+                logger.warn("OpenRouteService response coordinates list is empty");
+                return null;
+            }
+
+            // Extract summary information (distance and duration)
+            JsonNode propertiesNode = featureNode.path("properties");
+            JsonNode summaryNode = propertiesNode.path("summary");
+
+            Double distance = null;
+            Double duration = null;
+
+            if (!summaryNode.isMissingNode()) {
+                // Distance is in meters
+                JsonNode distanceNode = summaryNode.path("distance");
+                if (!distanceNode.isMissingNode()) {
+                    distance = distanceNode.asDouble();
+                }
+
+                // Duration is in seconds
+                JsonNode durationNode = summaryNode.path("duration");
+                if (!durationNode.isMissingNode()) {
+                    duration = durationNode.asDouble();
+                }
+            }
+
+            // Create response object
+            RouteResponse response = new RouteResponse(coordinates, distance, duration);
+
+            logger.info("Successfully retrieved complete route: {} points, {} km, {} min, {} km/h avg speed",
+                    coordinates.size(),
+                    response.getDistanceKilometers() != null ? String.format("%.2f", response.getDistanceKilometers()) : "N/A",
+                    response.getDurationMinutes() != null ? String.format("%.2f", response.getDurationMinutes()) : "N/A",
+                    response.getAverageSpeedKmh() != null ? String.format("%.2f", response.getAverageSpeedKmh()) : "N/A");
+
+            return response;
+
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            logger.error("HTTP error calling OpenRouteService API ({}): {}", e.getStatusCode(), e.getResponseBodyAsString());
+            return null;
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            logger.error("Network error calling OpenRouteService API: {}", e.getMessage());
+            return null;
+        } catch (Exception e) {
+            logger.error("Unexpected error calling OpenRouteService API", e);
+            return null;
         }
     }
 
