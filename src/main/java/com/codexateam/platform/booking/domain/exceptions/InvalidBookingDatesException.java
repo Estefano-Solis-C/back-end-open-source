@@ -1,12 +1,13 @@
 package com.codexateam.platform.booking.domain.exceptions;
 
+import com.codexateam.platform.shared.domain.exceptions.DomainException;
 import java.util.Date;
 
 /**
  * Exception thrown when booking dates are invalid.
  * For example, when the start date is after the end date.
  */
-public class InvalidBookingDatesException extends RuntimeException {
+public class InvalidBookingDatesException extends DomainException {
 
     private final Date startDate;
     private final Date endDate;

@@ -1,10 +1,12 @@
 package com.codexateam.platform.listings.domain.exceptions;
 
+import com.codexateam.platform.shared.domain.exceptions.DomainException;
+
 /**
  * Exception thrown when the specified owner does not exist or lacks required permissions.
  * An owner must have the ROLE_ARRENDADOR role to list vehicles.
  */
-public class OwnerNotFoundException extends RuntimeException {
+public class OwnerNotFoundException extends DomainException {
 
     /**
      * Constructs a new OwnerNotFoundException.

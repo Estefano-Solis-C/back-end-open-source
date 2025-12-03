@@ -1,10 +1,11 @@
 package com.codexateam.platform.reviews.domain.exceptions;
+import com.codexateam.platform.shared.domain.exceptions.DomainException;
 
 /**
  * Exception thrown when attempting to create a duplicate review.
  * A renter can only submit one review per vehicle.
  */
-public class ReviewAlreadyExistsException extends RuntimeException {
+public class ReviewAlreadyExistsException extends DomainException {
 
     /**
      * Constructs a new ReviewAlreadyExistsException.
@@ -16,4 +17,5 @@ public class ReviewAlreadyExistsException extends RuntimeException {
         super(String.format("Renter %d has already submitted a review for vehicle %d", renterId, vehicleId));
     }
 }
+
 

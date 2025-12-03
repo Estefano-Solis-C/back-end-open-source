@@ -12,6 +12,9 @@ import com.codexateam.platform.booking.domain.services.BookingCommandService;
 import com.codexateam.platform.booking.domain.services.BookingQueryService;
 import com.codexateam.platform.booking.domain.exceptions.BookingNotFoundException;
 import com.codexateam.platform.booking.domain.exceptions.InvalidBookingDatesException;
+import com.codexateam.platform.booking.domain.exceptions.InvalidBookingStatusException;
+import com.codexateam.platform.booking.domain.exceptions.UnauthorizedBookingAccessException;
+import com.codexateam.platform.booking.domain.exceptions.OwnerMismatchException;
 import com.codexateam.platform.booking.domain.exceptions.VehicleNotAvailableException;
 import com.codexateam.platform.booking.interfaces.rest.resources.BookingResource;
 import com.codexateam.platform.booking.interfaces.rest.resources.CreateBookingResource;
@@ -291,5 +294,35 @@ public class BookingsController {
 
         var resourceOut = BookingResourceFromEntityAssembler.toResourceFromEntity(updatedBooking);
         return ResponseEntity.ok(resourceOut);
+    }
+
+    @ExceptionHandler(BookingNotFoundException.class)
+    public ResponseEntity<String> handleBookingNotFoundException(BookingNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(VehicleNotAvailableException.class)
+    public ResponseEntity<String> handleVehicleNotAvailableException(VehicleNotAvailableException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidBookingDatesException.class)
+    public ResponseEntity<String> handleInvalidBookingDatesException(InvalidBookingDatesException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidBookingStatusException.class)
+    public ResponseEntity<String> handleInvalidBookingStatusException(InvalidBookingStatusException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(UnauthorizedBookingAccessException.class)
+    public ResponseEntity<String> handleUnauthorizedBookingAccessException(UnauthorizedBookingAccessException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(OwnerMismatchException.class)
+    public ResponseEntity<String> handleOwnerMismatchException(OwnerMismatchException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
     }
 }

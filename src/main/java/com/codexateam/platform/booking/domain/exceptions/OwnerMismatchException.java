@@ -1,10 +1,12 @@
 package com.codexateam.platform.booking.domain.exceptions;
 
+import com.codexateam.platform.shared.domain.exceptions.DomainException;
+
 /**
  * Exception thrown when there's a mismatch between the vehicle's owner and the booking's owner.
  * This can happen if the vehicle data is inconsistent with the booking request.
  */
-public class OwnerMismatchException extends RuntimeException {
+public class OwnerMismatchException extends DomainException {
 
     private final Long vehicleId;
     private final Long expectedOwnerId;
@@ -37,4 +39,5 @@ public class OwnerMismatchException extends RuntimeException {
         return actualOwnerId;
     }
 }
+
 

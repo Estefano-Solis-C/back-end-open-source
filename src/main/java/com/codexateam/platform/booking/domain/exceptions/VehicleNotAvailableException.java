@@ -1,9 +1,11 @@
 package com.codexateam.platform.booking.domain.exceptions;
 
+import com.codexateam.platform.shared.domain.exceptions.DomainException;
+
 /**
  * Domain exception thrown when a vehicle is not available for booking.
  */
-public class VehicleNotAvailableException extends RuntimeException {
+public class VehicleNotAvailableException extends DomainException {
     private final Long vehicleId;
     private final String status;
 
@@ -21,4 +23,5 @@ public class VehicleNotAvailableException extends RuntimeException {
         return status;
     }
 }
+
 

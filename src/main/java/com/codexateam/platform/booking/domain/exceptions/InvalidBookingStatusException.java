@@ -1,10 +1,12 @@
 package com.codexateam.platform.booking.domain.exceptions;
 
+import com.codexateam.platform.shared.domain.exceptions.DomainException;
+
 /**
  * Exception thrown when attempting an operation on a booking with an invalid status.
  * For example, trying to confirm a booking that is not in PENDING status.
  */
-public class InvalidBookingStatusException extends RuntimeException {
+public class InvalidBookingStatusException extends DomainException {
 
     private final String currentStatus;
     private final String requiredStatus;
@@ -45,4 +47,5 @@ public class InvalidBookingStatusException extends RuntimeException {
         return requiredStatus;
     }
 }
+
 

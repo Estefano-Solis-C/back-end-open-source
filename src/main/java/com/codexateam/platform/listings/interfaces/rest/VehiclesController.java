@@ -2,6 +2,7 @@ package com.codexateam.platform.listings.interfaces.rest;
 
 import com.codexateam.platform.iam.infrastructure.authorization.sfs.model.UserDetailsImpl;
 import com.codexateam.platform.listings.domain.exceptions.VehicleNotFoundException;
+import com.codexateam.platform.listings.domain.exceptions.OwnerNotFoundException;
 import com.codexateam.platform.listings.domain.model.queries.GetAllVehiclesQuery;
 import com.codexateam.platform.listings.domain.model.queries.GetVehicleByIdQuery;
 import com.codexateam.platform.listings.domain.model.queries.GetVehiclesByOwnerIdQuery;
@@ -186,5 +187,21 @@ public class VehiclesController {
         var command = new DeleteVehicleCommand(vehicleId);
         vehicleCommandService.handle(command);
         return ResponseEntity.noContent().build();
+    }
+
+    @ExceptionHandler(VehicleNotFoundException.class)
+    public ResponseEntity<String> handleVehicleNotFoundException(VehicleNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+
+
+    @ExceptionHandler(OwnerNotFoundException.class)
+    public ResponseEntity<String> handleOwnerNotFoundException(OwnerNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<String> handleSecurityException(SecurityException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ex.getMessage());
     }
 }

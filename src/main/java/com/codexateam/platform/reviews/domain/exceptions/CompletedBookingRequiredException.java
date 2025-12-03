@@ -1,10 +1,11 @@
 package com.codexateam.platform.reviews.domain.exceptions;
+import com.codexateam.platform.shared.domain.exceptions.DomainException;
 
 /**
  * Exception thrown when a renter attempts to create a review without a completed booking.
  * Only renters who have completed a booking for a vehicle can leave reviews.
  */
-public class CompletedBookingRequiredException extends RuntimeException {
+public class CompletedBookingRequiredException extends DomainException {
 
     /**
      * Constructs a new CompletedBookingRequiredException.
@@ -17,4 +18,5 @@ public class CompletedBookingRequiredException extends RuntimeException {
                            renterId, vehicleId));
     }
 }
+
 

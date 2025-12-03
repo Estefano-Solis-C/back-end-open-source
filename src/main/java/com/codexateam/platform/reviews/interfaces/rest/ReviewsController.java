@@ -5,6 +5,8 @@ import com.codexateam.platform.reviews.domain.model.queries.GetReviewsByRenterId
 import com.codexateam.platform.reviews.domain.model.queries.GetReviewsByVehicleIdQuery;
 import com.codexateam.platform.reviews.domain.model.queries.GetReviewByIdQuery;
 import com.codexateam.platform.reviews.domain.exceptions.ReviewNotFoundException;
+import com.codexateam.platform.reviews.domain.exceptions.ReviewAlreadyExistsException;
+import com.codexateam.platform.reviews.domain.exceptions.CompletedBookingRequiredException;
 import com.codexateam.platform.reviews.domain.services.ReviewCommandService;
 import com.codexateam.platform.reviews.domain.services.ReviewQueryService;
 import com.codexateam.platform.reviews.interfaces.rest.resources.CreateReviewResource;
@@ -135,5 +137,20 @@ public class ReviewsController {
                 .orElseThrow(() -> new ReviewNotFoundException(reviewId));
         var resource = ReviewResourceFromEntityAssembler.toResourceFromEntity(review);
         return ResponseEntity.ok(resource);
+    }
+
+    @ExceptionHandler(ReviewNotFoundException.class)
+    public ResponseEntity<String> handleReviewNotFoundException(ReviewNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(ReviewAlreadyExistsException.class)
+    public ResponseEntity<String> handleReviewAlreadyExistsException(ReviewAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(CompletedBookingRequiredException.class)
+    public ResponseEntity<String> handleCompletedBookingRequiredException(CompletedBookingRequiredException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.getMessage());
     }
 }

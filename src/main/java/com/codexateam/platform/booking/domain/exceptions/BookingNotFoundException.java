@@ -1,9 +1,11 @@
 package com.codexateam.platform.booking.domain.exceptions;
 
+import com.codexateam.platform.shared.domain.exceptions.DomainException;
+
 /**
  * Domain exception thrown when a Booking aggregate cannot be found.
  */
-public class BookingNotFoundException extends RuntimeException {
+public class BookingNotFoundException extends DomainException {
     private final Long bookingId;
 
     public BookingNotFoundException(Long bookingId) {

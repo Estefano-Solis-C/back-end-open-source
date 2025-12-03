@@ -1,10 +1,12 @@
 package com.codexateam.platform.booking.domain.exceptions;
 
+import com.codexateam.platform.shared.domain.exceptions.DomainException;
+
 /**
  * Exception thrown when a user attempts to access or modify a booking they don't own.
  * Only the booking owner (renter) can cancel their own bookings.
  */
-public class UnauthorizedBookingAccessException extends RuntimeException {
+public class UnauthorizedBookingAccessException extends DomainException {
 
     private final Long bookingId;
     private final Long userId;
@@ -29,4 +31,5 @@ public class UnauthorizedBookingAccessException extends RuntimeException {
         return userId;
     }
 }
+
 
