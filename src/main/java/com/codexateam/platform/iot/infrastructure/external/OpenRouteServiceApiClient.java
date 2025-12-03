@@ -61,15 +61,14 @@ public class OpenRouteServiceApiClient {
         }
 
         // Construct URL: API expects longitude,latitude order
-        // Format: /driving-car?api_key={key}&start={startLng},{startLat}&end={endLng},{endLat}
-        String url = String.format("%s?api_key=%s&start=%f,%f&end=%f,%f",
+        // Include geometry_simplify=false to get full geometry (not just turn points)
+        String url = String.format("%s?api_key=%s&start=%f,%f&end=%f,%f&geometry_simplify=false",
                 BASE_URL, apiKey, startLng, startLat, endLng, endLat);
 
         logger.info("Requesting route from OpenRouteService: start({}, {}) -> end({}, {})",
                 startLat, startLng, endLat, endLng);
 
         try {
-            // Use restTemplate.getForObject to get the raw JSON string
             String jsonResponse = restTemplate.getForObject(url, String.class);
 
             if (jsonResponse == null || jsonResponse.isEmpty()) {
@@ -77,10 +76,9 @@ public class OpenRouteServiceApiClient {
                 return Collections.emptyList();
             }
 
-            // Parse JSON using ObjectMapper
             JsonNode rootNode = objectMapper.readTree(jsonResponse);
 
-            // Navigate to features -> 0 -> geometry -> coordinates
+            // Navigate to features -> 0 -> geometry -> coordinates (GeoJSON LineString)
             JsonNode featuresNode = rootNode.path("features");
             if (featuresNode.isMissingNode() || !featuresNode.isArray() || featuresNode.isEmpty()) {
                 logger.warn("No features found in OpenRouteService response");
@@ -99,15 +97,12 @@ public class OpenRouteServiceApiClient {
                 return Collections.emptyList();
             }
 
-            // Extract coordinates into List<double[]>
-            // API returns [longitude, latitude] -> swap to [latitude, longitude] for our system
+            // Extract ALL coordinates from the geometry. API returns [lng, lat]; swap to [lat, lng]
             List<double[]> result = new ArrayList<>();
             for (JsonNode coordNode : coordinatesNode) {
                 if (coordNode.isArray() && coordNode.size() >= 2) {
                     double longitude = coordNode.get(0).asDouble();
                     double latitude = coordNode.get(1).asDouble();
-
-                    // Swap to [latitude, longitude] for our system
                     result.add(new double[]{latitude, longitude});
                 }
             }
@@ -135,15 +130,6 @@ public class OpenRouteServiceApiClient {
     /**
      * Retrieves complete route information from OpenRouteService API including
      * all coordinates (following streets), distance, and duration.
-     *
-     * This method extracts the complete geometry from the GeoJSON response to ensure
-     * the route follows actual streets and roads, not just straight lines.
-     *
-     * @param startLat Starting point latitude
-     * @param startLng Starting point longitude
-     * @param endLat Ending point latitude
-     * @param endLng Ending point longitude
-     * @return RouteResponse containing coordinates, distance, and duration, or null if failed
      */
     public RouteResponse getCompleteRoute(double startLat, double startLng, double endLat, double endLng) {
         if (apiKey == null || apiKey.isBlank()) {
@@ -151,15 +137,14 @@ public class OpenRouteServiceApiClient {
             return null;
         }
 
-        // Construct URL: API expects longitude,latitude order
-        String url = String.format("%s?api_key=%s&start=%f,%f&end=%f,%f",
+        // Include geometry_simplify=false for full geometry
+        String url = String.format("%s?api_key=%s&start=%f,%f&end=%f,%f&geometry_simplify=false",
                 BASE_URL, apiKey, startLng, startLat, endLng, endLat);
 
         logger.info("Requesting complete route from OpenRouteService: start({}, {}) -> end({}, {})",
                 startLat, startLng, endLat, endLng);
 
         try {
-            // Get JSON response from API
             String jsonResponse = restTemplate.getForObject(url, String.class);
 
             if (jsonResponse == null || jsonResponse.isEmpty()) {
@@ -167,10 +152,7 @@ public class OpenRouteServiceApiClient {
                 return null;
             }
 
-            // Parse JSON using ObjectMapper
             JsonNode rootNode = objectMapper.readTree(jsonResponse);
-
-            // Navigate to features array
             JsonNode featuresNode = rootNode.path("features");
             if (featuresNode.isMissingNode() || !featuresNode.isArray() || featuresNode.isEmpty()) {
                 logger.warn("No features found in OpenRouteService response");
@@ -179,7 +161,6 @@ public class OpenRouteServiceApiClient {
 
             JsonNode featureNode = featuresNode.get(0);
 
-            // Extract geometry coordinates (the complete route following streets)
             JsonNode geometryNode = featureNode.path("geometry");
             if (geometryNode.isMissingNode()) {
                 logger.error("No geometry found in OpenRouteService response");
@@ -192,13 +173,11 @@ public class OpenRouteServiceApiClient {
                 return null;
             }
 
-            // Extract ALL coordinates from the geometry (this is the complete path following streets)
             List<double[]> coordinates = new ArrayList<>();
             for (JsonNode coordNode : coordinatesNode) {
                 if (coordNode.isArray() && coordNode.size() >= 2) {
                     double longitude = coordNode.get(0).asDouble();
                     double latitude = coordNode.get(1).asDouble();
-                    // Swap to [latitude, longitude] for consistency
                     coordinates.add(new double[]{latitude, longitude});
                 }
             }
@@ -208,7 +187,6 @@ public class OpenRouteServiceApiClient {
                 return null;
             }
 
-            // Extract summary information (distance and duration)
             JsonNode propertiesNode = featureNode.path("properties");
             JsonNode summaryNode = propertiesNode.path("summary");
 
@@ -216,20 +194,16 @@ public class OpenRouteServiceApiClient {
             Double duration = null;
 
             if (!summaryNode.isMissingNode()) {
-                // Distance is in meters
                 JsonNode distanceNode = summaryNode.path("distance");
                 if (!distanceNode.isMissingNode()) {
                     distance = distanceNode.asDouble();
                 }
-
-                // Duration is in seconds
                 JsonNode durationNode = summaryNode.path("duration");
                 if (!durationNode.isMissingNode()) {
                     duration = durationNode.asDouble();
                 }
             }
 
-            // Create response object
             RouteResponse response = new RouteResponse(coordinates, distance, duration);
 
             logger.info("Successfully retrieved complete route: {} points, {} km, {} min, {} km/h avg speed",
@@ -254,8 +228,6 @@ public class OpenRouteServiceApiClient {
 
     /**
      * Validates if the API client is properly configured.
-     *
-     * @return true if the API key is set, false otherwise
      */
     public boolean isConfigured() {
         return apiKey != null && !apiKey.isBlank();
