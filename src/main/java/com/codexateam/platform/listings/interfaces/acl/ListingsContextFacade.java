@@ -10,16 +10,21 @@ import java.util.Optional;
 import com.codexateam.platform.listings.domain.model.commands.UpdateVehicleStatusCommand;
 import com.codexateam.platform.listings.domain.services.VehicleCommandService;
 import com.codexateam.platform.listings.interfaces.rest.resources.VehicleResource;
+import com.codexateam.platform.listings.interfaces.rest.transform.VehicleResourceFromEntityAssembler;
 
 @Service
 public class ListingsContextFacade {
 
     private final VehicleQueryService vehicleQueryService;
     private final VehicleCommandService vehicleCommandService;
+    private final VehicleResourceFromEntityAssembler vehicleResourceFromEntityAssembler;
 
-    public ListingsContextFacade(VehicleQueryService vehicleQueryService, VehicleCommandService vehicleCommandService) {
+    public ListingsContextFacade(VehicleQueryService vehicleQueryService,
+                                VehicleCommandService vehicleCommandService,
+                                VehicleResourceFromEntityAssembler vehicleResourceFromEntityAssembler) {
         this.vehicleQueryService = vehicleQueryService;
         this.vehicleCommandService = vehicleCommandService;
+        this.vehicleResourceFromEntityAssembler = vehicleResourceFromEntityAssembler;
     }
 
     /**
@@ -69,22 +74,6 @@ public class ListingsContextFacade {
     public Optional<VehicleResource> getVehicleById(Long vehicleId) {
         var query = new GetVehicleByIdQuery(vehicleId);
         var vehicleOpt = vehicleQueryService.handle(query);
-        return vehicleOpt.map(this::toResource);
-    }
-
-    // Helper to map aggregate to resource without exposing controller layer.
-    private VehicleResource toResource(Vehicle v) {
-        String imageUrl = String.format("http://localhost:8080/api/v1/vehicles/%d/image", v.getId());
-        return new VehicleResource(
-                v.getId(),
-                v.getBrand(),
-                v.getModel(),
-                v.getYear(),
-                v.getPricePerDay(),
-                v.getStatus(),
-                imageUrl,
-                v.getOwnerId(),
-                v.getCreatedAt()
-        );
+        return vehicleOpt.map(vehicleResourceFromEntityAssembler::toResourceFromEntity);
     }
 }
