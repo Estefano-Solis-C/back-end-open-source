@@ -202,11 +202,7 @@ public class VehiclesController {
             @RequestPart("resource") CreateVehicleResource resource,
             @RequestPart(value = "image", required = false) MultipartFile image) {
         try {
-            byte[] imageBytes = null;
-            // Only process the image if it was provided and is not empty
-            if (image != null && !image.isEmpty()) {
-                imageBytes = image.getBytes();
-            }
+            byte[] imageBytes = (image != null && !image.isEmpty()) ? image.getBytes() : null;
             var command = new UpdateVehicleCommand(
                     vehicleId,
                     resource.brand(),
