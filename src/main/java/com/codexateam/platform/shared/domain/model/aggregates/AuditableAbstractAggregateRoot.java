@@ -35,10 +35,10 @@ public abstract class AuditableAbstractAggregateRoot<T extends AbstractAggregate
 
     /**
      * Timestamp indicating when the entity was created.
-     * It is non-nullable and not updatable.
+     * It is non-nullable. Note: updatable=false removed to allow UPSERT strategy for Telemetry.
      */
     @CreatedDate
-    @Column(nullable = false) // removido updatable=false para permitir estrategia UPSERT en Telemetry
+    @Column(nullable = false)
     private Date createdAt;
 
     /**

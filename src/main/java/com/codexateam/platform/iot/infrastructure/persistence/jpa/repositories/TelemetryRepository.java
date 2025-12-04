@@ -20,7 +20,10 @@ public interface TelemetryRepository extends JpaRepository<Telemetry, Long> {
      */
     List<Telemetry> findByVehicleId(Long vehicleId, Sort sort);
 
-    // Delete all telemetry entries by vehicleId (cascade cleanup when deleting a vehicle)
+    /**
+     * Deletes all telemetry records for a specific vehicle.
+     * @param vehicleId The ID of the vehicle.
+     */
     void deleteByVehicleId(Long vehicleId);
 
     /**
@@ -28,5 +31,8 @@ public interface TelemetryRepository extends JpaRepository<Telemetry, Long> {
      */
     Optional<Telemetry> findFirstByVehicleIdOrderByCreatedAtDesc(Long vehicleId);
 
-    List<Telemetry> findByVehicleId(Long vehicleId); // Added simple finder
+    /**
+     * Finds all telemetry records for a specific vehicle.
+     */
+    List<Telemetry> findByVehicleId(Long vehicleId);
 }

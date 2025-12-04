@@ -28,7 +28,15 @@ public class OpenRouteServiceApiClient {
         this.objectMapper = new ObjectMapper();
     }
 
-    // Método simplificado para obtener solo las coordenadas (como pediste en el prompt anterior)
+    /**
+     * Gets route coordinates between two points.
+     *
+     * @param startLat Starting latitude
+     * @param startLng Starting longitude
+     * @param endLat Ending latitude
+     * @param endLng Ending longitude
+     * @return List of coordinate points forming the route
+     */
     public List<double[]> getRouteCoordinates(double startLat, double startLng, double endLat, double endLng) {
         if (!isConfigured()) {
             return Collections.emptyList();

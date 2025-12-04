@@ -89,6 +89,9 @@ public class Vehicle extends AuditableAbstractAggregateRoot<Vehicle> {
         }
     }
 
-    // Accessor for status value
+    /**
+     * Returns the vehicle's status as a string.
+     * @return The status value or null if status is not set.
+     */
     public String getStatus() { return status != null ? status.value() : null; }
 }

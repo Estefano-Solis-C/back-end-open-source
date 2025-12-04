@@ -95,7 +95,6 @@ public class RouteController {
         var query = new GetCompleteRouteQuery(startLat, startLng, endLat, endLng);
         RouteResponse route = routeQueryService.handle(query);
 
-        // Transform coordinates to List<List<Double>> for JSON serialization
         List<List<Double>> coords = new ArrayList<>(route.getCoordinates().size());
         for (double[] c : route.getCoordinates()) {
             if (c != null && c.length >= 2) {

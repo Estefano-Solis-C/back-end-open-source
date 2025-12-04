@@ -117,12 +117,10 @@ public class VehicleCommandServiceImpl implements VehicleCommandService {
     public void handle(DeleteVehicleCommand command) {
         Long vehicleId = command.vehicleId();
 
-        // Validate vehicle exists before deletion
         if (!vehicleRepository.existsById(vehicleId)) {
             throw new VehicleNotFoundException(vehicleId);
         }
 
-        // Cascade delete related entities
         bookingRepository.deleteByVehicleId(vehicleId);
         reviewRepository.deleteByVehicleId(vehicleId);
         telemetryRepository.deleteByVehicleId(vehicleId);

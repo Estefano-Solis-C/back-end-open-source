@@ -3,12 +3,9 @@ package com.codexateam.platform.iot.application.internal.outboundservices.acl;
 import com.codexateam.platform.booking.domain.model.queries.GetBookingsByRenterIdQuery;
 import com.codexateam.platform.booking.domain.model.aggregates.Booking;
 import com.codexateam.platform.booking.domain.services.BookingQueryService;
-import com.codexateam.platform.booking.infrastructure.persistence.jpa.repositories.BookingRepository;
-import com.codexateam.platform.booking.interfaces.acl.BookingContextFacade;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
-import java.util.Optional;
 
 /**
  * Implementation of ExternalBookingService ACL for IoT context.
@@ -21,15 +18,9 @@ public class ExternalBookingServiceImpl implements ExternalBookingService {
     private static final String BOOKING_STATUS_PENDING = "PENDING";
 
     private final BookingQueryService bookingQueryService;
-    private final BookingContextFacade bookingContextFacade;
-    private final BookingRepository bookingRepository;
 
-    public ExternalBookingServiceImpl(BookingQueryService bookingQueryService,
-                                     BookingContextFacade bookingContextFacade,
-                                     BookingRepository bookingRepository) {
+    public ExternalBookingServiceImpl(BookingQueryService bookingQueryService) {
         this.bookingQueryService = bookingQueryService;
-        this.bookingContextFacade = bookingContextFacade;
-        this.bookingRepository = bookingRepository;
     }
 
     @Override
@@ -53,22 +44,5 @@ public class ExternalBookingServiceImpl implements ExternalBookingService {
 
     private boolean isWithinBookingPeriod(Booking booking, Date now) {
         return !now.before(booking.getStartDate()) && !now.after(booking.getEndDate());
-    }
-
-    @Override
-    public Optional<Long> getBookingIdByVehicleIdAndDate(Long vehicleId, Date timestamp) {
-        return bookingContextFacade.getBookingIdByVehicleIdAndDate(vehicleId, timestamp);
-    }
-
-    @Override
-    public Optional<Long> getActiveRenterIdByVehicleId(Long vehicleId) {
-        Date now = new Date();
-        return bookingRepository.findByBookingStatus_StatusAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
-                BOOKING_STATUS_CONFIRMED,
-                now,
-                now).stream()
-                .filter(booking -> booking.getVehicleId().equals(vehicleId))
-                .findFirst()
-                .map(Booking::getRenterId);
     }
 }

@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Getter
 @Entity
-@Table(name = "reviews") // Pluralized by naming strategy
+@Table(name = "reviews")
 public class Review extends AuditableAbstractAggregateRoot<Review> {
 
     @Column(nullable = false)

@@ -43,7 +43,6 @@ public class OpenApiConfiguration {
                 .externalDocs(new ExternalDocumentation()
                         .description("CodexaTeam Wiki Documentation"));
 
-        // Add Bearer Token security scheme
         final String securitySchemeName = "bearerAuth";
         openApi.addSecurityItem(new SecurityRequirement()
                         .addList(securitySchemeName))

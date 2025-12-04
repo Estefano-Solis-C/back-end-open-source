@@ -55,7 +55,7 @@ public class UserCommandServiceImpl implements UserCommandService {
     @Override
     public Optional<User> handle(SignInCommand command) {
         var emailAddress = new EmailAddress(command.email());
-        var user = userRepository.findByEmail(emailAddress); // <--- USE VO
+        var user = userRepository.findByEmail(emailAddress);
         if (user.isEmpty()) {
             throw new UserNotFoundException(command.email());
         }

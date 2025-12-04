@@ -53,7 +53,6 @@ public class TelemetryController {
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
 
-    // Cache for planned routes to avoid repeated external API calls
     private final Map<Long, List<List<Double>>> routeCache = new ConcurrentHashMap<>();
 
     public TelemetryController(
@@ -163,7 +162,6 @@ public class TelemetryController {
     public ResponseEntity<TelemetryResource> getLatestTelemetryByVehicleId(@PathVariable Long vehicleId) {
         Long userId = getAuthenticatedUserId();
 
-        // Notify simulation service that someone is actively monitoring this vehicle
         automaticTelemetryGeneratorService.notifyActiveMonitoring(vehicleId);
 
         var query = new GetLatestTelemetryQuery(vehicleId);
@@ -173,7 +171,6 @@ public class TelemetryController {
             return ResponseEntity.notFound().build();
         }
 
-        // Use cached planned route if available; otherwise fetch and cache
         List<List<Double>> plannedRoute = routeCache.computeIfAbsent(vehicleId, id -> {
             var plannedRoutePoints = automaticTelemetryGeneratorService.getPlannedRoute(id);
             return plannedRoutePoints.stream().map(p -> List.of(p[0], p[1])).toList();
@@ -182,7 +179,6 @@ public class TelemetryController {
         var resource = TelemetryResourceFromEntityAssembler
                 .toResourceFromEntity(optionalTelemetry.get(), plannedRoute);
 
-        // Enrich response with current renter information if there's an active booking
         Date now = new Date();
         bookingRepository.findFirstByVehicleIdAndBookingStatus_StatusAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
                 vehicleId, BOOKING_STATUS_CONFIRMED, now, now)

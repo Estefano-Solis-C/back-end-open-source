@@ -44,18 +44,15 @@ public class TelemetryCommandServiceImpl implements TelemetryCommandService {
     @Override
     @Transactional
     public Telemetry handle(RecordTelemetryCommand command, Long userId) {
-        // Business Rule: Validate that the vehicle exists
         if (externalListingsService.fetchVehicleById(command.vehicleId()).isEmpty()) {
             throw new VehicleNotFoundException(command.vehicleId());
         }
 
-        // Business Rule: Only vehicle owner can record telemetry
         if (!externalListingsService.isVehicleOwner(command.vehicleId(), userId)) {
             throw new UnauthorizedAccessException(
                     "Not authorized to record telemetry for vehicle " + command.vehicleId());
         }
 
-        // Create and persist telemetry aggregate
         var telemetry = new Telemetry(command);
         telemetryRepository.save(telemetry);
 

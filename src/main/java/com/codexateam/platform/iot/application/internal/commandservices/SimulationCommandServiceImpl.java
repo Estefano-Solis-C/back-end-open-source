@@ -24,12 +24,10 @@ public class SimulationCommandServiceImpl implements SimulationCommandService {
      * Business Rule: Only vehicle owners can start simulations.
      */
     private void validateSimulationAuthorization(Long vehicleId, Long userId) {
-        // Validate vehicle exists
         if (externalListingsService.fetchVehicleById(vehicleId).isEmpty()) {
             throw new VehicleNotFoundException(vehicleId);
         }
 
-        // Validate user is vehicle owner
         if (!externalListingsService.isVehicleOwner(vehicleId, userId)) {
             throw new UnauthorizedAccessException(
                     "Not authorized to simulate telemetry for vehicle " + vehicleId);
@@ -39,15 +37,11 @@ public class SimulationCommandServiceImpl implements SimulationCommandService {
     @Override
     public void startSimulation(Long vehicleId, Long userId) {
         validateSimulationAuthorization(vehicleId, userId);
-        // Note: Actual simulation logic is handled by AutomaticTelemetryGeneratorService
-        // This service only handles authorization
     }
 
     @Override
     public void startCustomSimulation(Long vehicleId, Long userId, double startLat, double startLng, double endLat, double endLng) {
         validateSimulationAuthorization(vehicleId, userId);
-        // Note: Actual simulation logic is handled by AutomaticTelemetryGeneratorService
-        // This service only handles authorization
     }
 }
 
