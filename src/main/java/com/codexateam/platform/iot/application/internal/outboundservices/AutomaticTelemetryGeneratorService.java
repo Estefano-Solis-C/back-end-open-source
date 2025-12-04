@@ -187,4 +187,33 @@ public class AutomaticTelemetryGeneratorService {
     private double ensureWithinBounds(double value, double min, double max) {
         return Math.max(min, Math.min(value, max));
     }
+
+    /**
+     * Calcula una pequeña desviación realista en las coordenadas.
+     * Simula el movimiento gradual de un vehículo (máximo ~50 metros).
+     *
+     * Factor de aleatoriedad: 0.0005 grados aprox. = 50-60 metros en el Ecuador
+     * En Lima (latitud ~-12°), aproximadamente 40-50 metros de movimiento realista.
+     *
+     * @param currentLatitude Latitud actual del vehículo
+     * @param currentLongitude Longitud actual del vehículo
+     * @return Array con [nuevaLatitud, nuevaLongitud] dentro de los límites de Lima
+     */
+    private double[] calculateSmallRealisticMovement(double currentLatitude, double currentLongitude) {
+        // Factor de aleatoriedad muy pequeño para simular movimiento en tráfico real
+        final double COORDINATE_VARIATION_FACTOR = 0.0005; // Aprox. 50 metros
+
+        // Generar pequeña variación en ambas coordenadas
+        double latVariation = (ThreadLocalRandom.current().nextDouble() - 0.5) * COORDINATE_VARIATION_FACTOR;
+        double lngVariation = (ThreadLocalRandom.current().nextDouble() - 0.5) * COORDINATE_VARIATION_FACTOR;
+
+        double newLatitude = currentLatitude + latVariation;
+        double newLongitude = currentLongitude + lngVariation;
+
+        // Asegurar que las nuevas coordenadas permanecen dentro de los límites de Lima
+        newLatitude = ensureWithinBounds(newLatitude, LIMA_LAT_MIN, LIMA_LAT_MAX);
+        newLongitude = ensureWithinBounds(newLongitude, LIMA_LNG_MIN, LIMA_LNG_MAX);
+
+        return new double[]{newLatitude, newLongitude};
+    }
 }
