@@ -16,16 +16,19 @@ import java.util.Optional;
 public class ExternalListingsServiceImpl implements ExternalListingsService {
 
     private final VehicleQueryService vehicleQueryService;
+    private final VehicleResourceFromEntityAssembler vehicleResourceFromEntityAssembler;
 
-    public ExternalListingsServiceImpl(VehicleQueryService vehicleQueryService) {
+    public ExternalListingsServiceImpl(VehicleQueryService vehicleQueryService,
+                                      VehicleResourceFromEntityAssembler vehicleResourceFromEntityAssembler) {
         this.vehicleQueryService = vehicleQueryService;
+        this.vehicleResourceFromEntityAssembler = vehicleResourceFromEntityAssembler;
     }
 
     @Override
     public Optional<VehicleResource> fetchVehicleById(Long vehicleId) {
         var query = new GetVehicleByIdQuery(vehicleId);
         var vehicle = vehicleQueryService.handle(query);
-        return vehicle.map(VehicleResourceFromEntityAssembler::toResourceFromEntity);
+        return vehicle.map(vehicleResourceFromEntityAssembler::toResourceFromEntity);
     }
 
     @Override

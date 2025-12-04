@@ -46,10 +46,14 @@ public class VehiclesController {
 
     private final VehicleCommandService vehicleCommandService;
     private final VehicleQueryService vehicleQueryService;
+    private final VehicleResourceFromEntityAssembler vehicleResourceFromEntityAssembler;
 
-    public VehiclesController(VehicleCommandService vehicleCommandService, VehicleQueryService vehicleQueryService) {
+    public VehiclesController(VehicleCommandService vehicleCommandService,
+                             VehicleQueryService vehicleQueryService,
+                             VehicleResourceFromEntityAssembler vehicleResourceFromEntityAssembler) {
         this.vehicleCommandService = vehicleCommandService;
         this.vehicleQueryService = vehicleQueryService;
+        this.vehicleResourceFromEntityAssembler = vehicleResourceFromEntityAssembler;
     }
     
     /**
@@ -88,7 +92,7 @@ public class VehiclesController {
             var command = CreateVehicleCommandFromResourceAssembler.toCommandFromResource(resource, imageBytes, ownerId);
             var vehicle = vehicleCommandService.handle(command)
                     .orElseThrow(() -> new RuntimeException(ERROR_CREATING_VEHICLE));
-            var vehicleResource = VehicleResourceFromEntityAssembler.toResourceFromEntity(vehicle);
+            var vehicleResource = vehicleResourceFromEntityAssembler.toResourceFromEntity(vehicle);
             return ResponseEntity.status(HttpStatus.CREATED).body(vehicleResource);
         } catch (IOException e) {
             throw new RuntimeException("Error reading image file: " + e.getMessage(), e);
@@ -108,7 +112,7 @@ public class VehiclesController {
         var query = new GetAllVehiclesQuery();
         var vehicles = vehicleQueryService.handle(query);
         var resources = vehicles.stream()
-                .map(VehicleResourceFromEntityAssembler::toResourceFromEntity)
+                .map(vehicleResourceFromEntityAssembler::toResourceFromEntity)
                 .toList();
         return ResponseEntity.ok(resources);
     }
@@ -128,7 +132,7 @@ public class VehiclesController {
         var query = new GetVehicleByIdQuery(vehicleId);
         var vehicle = vehicleQueryService.handle(query)
                 .orElseThrow(() -> new VehicleNotFoundException(vehicleId));
-        var resource = VehicleResourceFromEntityAssembler.toResourceFromEntity(vehicle);
+        var resource = vehicleResourceFromEntityAssembler.toResourceFromEntity(vehicle);
         return ResponseEntity.ok(resource);
     }
 
@@ -174,7 +178,7 @@ public class VehiclesController {
         var query = new GetVehiclesByOwnerIdQuery(ownerId);
         var vehicles = vehicleQueryService.handle(query);
         var resources = vehicles.stream()
-                .map(VehicleResourceFromEntityAssembler::toResourceFromEntity)
+                .map(vehicleResourceFromEntityAssembler::toResourceFromEntity)
                 .toList();
         return ResponseEntity.ok(resources);
     }
@@ -211,7 +215,7 @@ public class VehiclesController {
             if (updatedVehicle.isEmpty()) {
                 return ResponseEntity.notFound().build();
             }
-            var vehicleResource = VehicleResourceFromEntityAssembler.toResourceFromEntity(updatedVehicle.get());
+            var vehicleResource = vehicleResourceFromEntityAssembler.toResourceFromEntity(updatedVehicle.get());
             return ResponseEntity.ok(vehicleResource);
         } catch (IOException e) {
             throw new RuntimeException("Error reading image file: " + e.getMessage(), e);
