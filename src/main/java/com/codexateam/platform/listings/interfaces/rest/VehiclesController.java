@@ -187,7 +187,7 @@ public class VehiclesController {
      * Updates an existing vehicle listing (owner only).
      * @param vehicleId vehicle identifier
      * @param resource updated data as JSON
-     * @param image the updated vehicle image file
+     * @param image the updated vehicle image file (optional)
      * @return updated vehicle resource
      */
     @PutMapping(value = "/{vehicleId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -200,9 +200,13 @@ public class VehiclesController {
     public ResponseEntity<VehicleResource> updateVehicle(
             @PathVariable Long vehicleId,
             @RequestPart("resource") CreateVehicleResource resource,
-            @RequestPart("image") MultipartFile image) {
+            @RequestPart(value = "image", required = false) MultipartFile image) {
         try {
-            byte[] imageBytes = image.getBytes();
+            byte[] imageBytes = null;
+            // Only process the image if it was provided and is not empty
+            if (image != null && !image.isEmpty()) {
+                imageBytes = image.getBytes();
+            }
             var command = new UpdateVehicleCommand(
                     vehicleId,
                     resource.brand(),

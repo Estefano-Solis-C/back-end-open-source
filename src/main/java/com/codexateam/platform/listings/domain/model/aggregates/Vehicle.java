@@ -75,6 +75,7 @@ public class Vehicle extends AuditableAbstractAggregateRoot<Vehicle> {
 
     /**
      * Updates the vehicle's information with values from the UpdateVehicleCommand.
+     * Only updates the image if the command contains valid image data (not null and not empty).
      * @param command The command containing the updated vehicle data.
      */
     public void update(UpdateVehicleCommand command) {
@@ -82,7 +83,10 @@ public class Vehicle extends AuditableAbstractAggregateRoot<Vehicle> {
         this.model = command.model();
         this.year = command.year();
         this.pricePerDay = command.pricePerDay();
-        this.image = command.image();
+        // Only update image if new image data is provided
+        if (command.image() != null && command.image().length > 0) {
+            this.image = command.image();
+        }
     }
 
     // Accessor for status value
