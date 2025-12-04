@@ -2,37 +2,31 @@ package com.codexateam.platform.listings.interfaces.rest.transform;
 
 import com.codexateam.platform.listings.domain.model.aggregates.Vehicle;
 import com.codexateam.platform.listings.interfaces.rest.resources.VehicleResource;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /**
  * Assembler to convert Vehicle aggregate to VehicleResource DTO.
- * Now a Spring component that injects the base URL from configuration.
+ * Builds dynamic URLs based on the current request context (scheme/host/port) to avoid hardcoding.
  */
 @Component
 public class VehicleResourceFromEntityAssembler {
 
-    private static final String IMAGE_ENDPOINT = "/api/v1/vehicles/%d/image";
-
-    private final String baseUrl;
-
-    /**
-     * Constructor with dependency injection.
-     *
-     * @param baseUrl The base URL injected from application properties.
-     */
-    public VehicleResourceFromEntityAssembler(@Value("${app.storage.base-url}") String baseUrl) {
-        this.baseUrl = baseUrl;
-    }
+    private static final String IMAGE_ENDPOINT_PATTERN = "/api/v1/vehicles/%d/image";
 
     /**
      * Converts a Vehicle domain entity to a VehicleResource DTO.
+     * Dynamically derives base URL from the current HTTP request context.
      *
      * @param entity The Vehicle aggregate.
      * @return The VehicleResource DTO.
      */
     public VehicleResource toResourceFromEntity(Vehicle entity) {
-        String imageUrl = String.format(baseUrl + IMAGE_ENDPOINT, entity.getId());
+        String baseUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .build()
+                .toUriString();
+        String imageUrl = baseUrl + String.format(IMAGE_ENDPOINT_PATTERN, entity.getId());
+
         return new VehicleResource(
                 entity.getId(),
                 entity.getBrand(),
